@@ -1,5 +1,11 @@
 // api/notify.js
 // Digunakan di server (Vercel Function, Netlify Function, atau Express route)
+import { createClient } from '@supabase/supabase-js';
+
+// Inisialisasi Supabase di server-side
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY; // Gunakan service_key untuk operasi admin
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -18,6 +24,14 @@ export default async function handler(req, res) {
     if (!BOT_TOKEN || !CHAT_ID) {
       console.error("TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHAT_ID is not set.");
       return res.status(500).json({ error: "Telegram bot credentials not configured." });
+    }
+
+    // Fetch Pterodactyl Panel URL from settings table once
+    const { data: settingsData, error: settingsError } = await supabase.from("settings").select("pterodactyl_panel_url").single();
+    const globalPterodactylPanelUrl = settingsData?.pterodactyl_panel_url || "-";
+
+    if (settingsError && settingsError.code !== 'PGRST116') { // PGRST116 means no rows found
+      console.error("Error fetching Pterodactyl Panel URL from settings:", settingsError);
     }
 
     for (const o of orders) {
@@ -40,7 +54,8 @@ export default async function handler(req, res) {
       const contactEmail = escapeHtml(o.contact_email || "-");
       const status = escapeHtml(o.status.replace(/_/g, " ").toUpperCase());
       const pterodactylServerId = escapeHtml(o.pterodactyl_server_id || "-");
-      const pterodactylPanelUrl = process.env.PTERODACTYL_PANEL_URL ? escapeHtml(process.env.PTERODACTYL_PANEL_URL) : "-";
+      // Use the fetched global Pterodactyl Panel URL
+      const pterodactylPanelUrl = escapeHtml(globalPterodactylPanelUrl);
 
       let caption = "";
 
