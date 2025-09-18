@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>STORESKULL</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // config.js content
+    const supabaseUrl = 'https://pfjpwfpnirbwfmfpmkuc.supabase.co'; // GANTI DENGAN URL SUPABASE ANDA
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmanB3ZnBuaXJid2ZtZnBta3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3ODQ5MTcsImV4cCI6MjA3MzM2MDkxN30.EadYOACg3gj79nsDkSc4NWStQyr2BokNVkVilgWWoX8'; // GANTI DENGAN ANON KEY SUPABASE ANDA
+    const { createClient } = supabase;
+    window.supabase = createClient(supabaseUrl, supabaseKey);
+  </script>
+  <script>
+    // index.js content
+    // This file is mostly for the initial landing page, no complex logic here.
+    // The HTML already handles the redirect to signin.html
+  </script>
+</head>
+<body>
+  <header>
+    <h1>STORESKULL</h1>
+    <nav>
+      <a href="signin.html">Login</a>
+      <a href="signup.html">Register</a>
+    </nav>
+  </header>
+  <main>
+    <section class="hero">
+      <h2>Selamat Datang di STORESKULL</h2>
+      <p>Temukan produk terbaik dengan harga menarik!</p>
+      <button onclick="window.location.href='signin.html'">Mulai Belanja</button>
+    </section>
+  </main>
+  <footer>
+    <p>&copy; 2025 STORESKULL</p>
+  </footer>
+</body>
+</html>
