@@ -8,14 +8,15 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // config.js content
-    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // GANTI DENGAN URL SUPABASE ANDA
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // GANTI DENGAN ANON KEY SUPABASE ANDA
+    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // UPDATED SUPABASE URL
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // UPDATED SUPABASE KEY
     const { createClient } = supabase;
     window.supabase = createClient(supabaseUrl, supabaseKey);
   </script>
   <script>
     // admin-dashboard.js content
     let currentAdmin = null;
+    let pterodactylConfigs = []; // To store available Pterodactyl configurations
 
     async function checkAdminAuth() {
       const { data: { user }, error } = await window.supabase.auth.getUser();
@@ -40,16 +41,211 @@
       document.getElementById("orders").style.display = "none";
       document.getElementById("settings").style.display = "none";
       document.getElementById("ratings").style.display = "none";
+      document.getElementById("pterodactyl-settings").style.display = "none"; // NEW SECTION
       document.getElementById(section).style.display = "block";
 
       if (section === "products") loadProducts();
       if (section === "orders") loadOrders();
       if (section === "settings") loadQrisSettings();
       if (section === "ratings") loadRatings();
+      if (section === "pterodactyl-settings") loadPterodactylSettings(); // NEW
     }
 
+    // NEW: Pterodactyl Config Management
+    async function loadPterodactylConfigs() {
+      const { data, error } = await window.supabase.from("pterodactyl_configs").select("*").order("name", { ascending: true });
+      if (error) {
+        console.error("Error loading Pterodactyl configs:", error);
+        return [];
+      }
+      pterodactylConfigs = data || [];
+      return pterodactylConfigs;
+    }
+
+    async function renderPterodactylConfigs() {
+      const container = document.getElementById("pterodactylConfigsList");
+      container.innerHTML = "";
+
+      if (pterodactylConfigs.length === 0) {
+        container.innerHTML = "<p>Belum ada konfigurasi Pterodactyl yang ditambahkan.</p>";
+        return;
+      }
+
+      pterodactylConfigs.forEach(config => {
+        const div = document.createElement("div");
+        div.className = "pterodactyl-config-item";
+        div.innerHTML = `
+          <p><strong>${config.name}</strong></p>
+          <p>Egg ID: ${config.egg_id}, Nest ID: ${config.nest_id}, Location ID: ${config.location_id}</p>
+          <p>Memory: ${config.memory}MB, CPU: ${config.cpu}%, Disk: ${config.disk}MB, Swap: ${config.swap}MB, IO: ${config.io}</p>
+          <div class="config-actions">
+            <button onclick="editPterodactylConfig('${config.id}')" class="admin-button">✏️ Edit</button>
+            <button onclick="deletePterodactylConfig('${config.id}')" class="admin-button delete">🗑️ Hapus</button>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    async function addOrUpdatePterodactylConfig(event) {
+      event.preventDefault();
+      const configId = document.getElementById("configId").value;
+      const name = document.getElementById("configName").value;
+      const egg_id = parseInt(document.getElementById("configEggId").value, 10);
+      const nest_id = parseInt(document.getElementById("configNestId").value, 10);
+      const location_id = parseInt(document.getElementById("configLocationId").value, 10);
+      const memory = parseInt(document.getElementById("configMemory").value, 10);
+      const cpu = parseInt(document.getElementById("configCpu").value, 10);
+      const disk = parseInt(document.getElementById("configDisk").value, 10);
+      const swap = parseInt(document.getElementById("configSwap").value, 10);
+      const io = parseInt(document.getElementById("configIo").value, 10);
+      // Removed: databases, allocations, backups, startup_script, server_name_prefix
+
+      if (!name || isNaN(egg_id) || isNaN(nest_id) || isNaN(location_id) || isNaN(memory) || isNaN(cpu) || isNaN(disk)) {
+        alert("Lengkapi semua field konfigurasi Pterodactyl yang wajib (Nama, Egg ID, Nest ID, Location ID, Memory, CPU, Disk)!");
+        return;
+      }
+
+      const configData = {
+        name, egg_id, nest_id, location_id, memory, cpu, disk, swap, io
+      };
+
+      let error;
+      if (configId) {
+        // Update existing config
+        ({ error } = await window.supabase.from("pterodactyl_configs").update(configData).eq("id", configId));
+      } else {
+        // Add new config
+        ({ error } = await window.supabase.from("pterodactyl_configs").insert([configData]));
+      }
+
+      if (error) {
+        alert("Gagal menyimpan konfigurasi: " + error.message);
+        console.error("Error saving Pterodactyl config:", error);
+        return;
+      }
+
+      alert("Konfigurasi Pterodactyl berhasil disimpan!");
+      document.getElementById("pterodactylConfigForm").reset();
+      document.getElementById("configId").value = ""; // Clear hidden ID
+      await loadPterodactylConfigs();
+      renderPterodactylConfigs();
+    }
+
+    async function editPterodactylConfig(id) {
+      const config = pterodactylConfigs.find(c => c.id === id);
+      if (!config) return alert("Konfigurasi tidak ditemukan.");
+
+      document.getElementById("configId").value = config.id;
+      document.getElementById("configName").value = config.name;
+      document.getElementById("configEggId").value = config.egg_id;
+      document.getElementById("configNestId").value = config.nest_id;
+      document.getElementById("configLocationId").value = config.location_id;
+      document.getElementById("configMemory").value = config.memory;
+      document.getElementById("configCpu").value = config.cpu;
+      document.getElementById("configDisk").value = config.disk;
+      document.getElementById("configSwap").value = config.swap;
+      document.getElementById("configIo").value = config.io;
+      // Removed: databases, allocations, backups, startup_script, server_name_prefix fields from edit form
+
+      // Scroll to form
+      document.getElementById("addPterodactylConfigForm").scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function deletePterodactylConfig(id) {
+      if (!confirm("Yakin ingin menghapus konfigurasi ini? Produk yang menggunakan konfigurasi ini mungkin akan terpengaruh.")) return;
+
+      const { error } = await window.supabase.from("pterodactyl_configs").delete().eq("id", id);
+      if (error) {
+        alert("Gagal menghapus konfigurasi: " + error.message);
+        console.error("Error deleting Pterodactyl config:", error);
+        return;
+      }
+      alert("Konfigurasi berhasil dihapus.");
+      await loadPterodactylConfigs();
+      renderPterodactylConfigs();
+      loadProducts(); // Refresh products list in case any product used this config
+    }
+
+    async function loadPterodactylSettings() {
+      await loadPterodactylConfigs(); // Load configs for product dropdown
+      renderPterodactylConfigs(); // Render configs list
+
+      const { data, error } = await window.supabase.from("settings").select("pterodactyl_panel_url, pterodactyl_api_key").single();
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error loading Pterodactyl global settings:", error);
+        document.getElementById("pterodactylPanelUrl").value = "";
+        document.getElementById("pterodactylApiKey").value = "";
+        return;
+      }
+
+      if (data) {
+        document.getElementById("pterodactylPanelUrl").value = data.pterodactyl_panel_url || "";
+        document.getElementById("pterodactylApiKey").value = data.pterodactyl_api_key || "";
+      } else {
+        document.getElementById("pterodactylPanelUrl").value = "";
+        document.getElementById("pterodactylApiKey").value = "";
+      }
+    }
+
+    async function savePterodactylGlobalSettings(event) {
+      event.preventDefault();
+      const panelUrl = document.getElementById("pterodactylPanelUrl").value;
+      const apiKey = document.getElementById("pterodactylApiKey").value;
+
+      if (!panelUrl || !apiKey) {
+        alert("URL Panel dan API Key Pterodactyl wajib diisi!");
+        return;
+      }
+
+      const { data: existingSettings, error: fetchError } = await window.supabase
+        .from("settings")
+        .select("id")
+        .limit(1)
+        .single();
+
+      let error;
+      if (existingSettings) {
+        ({ error } = await window.supabase
+          .from("settings")
+          .update({ pterodactyl_panel_url: panelUrl, pterodactyl_api_key: apiKey, updated_at: new Date() })
+          .eq("id", existingSettings.id));
+      } else {
+        ({ error } = await window.supabase
+          .from("settings")
+          .insert([{ pterodactyl_panel_url: panelUrl, pterodactyl_api_key: apiKey }]));
+      }
+
+      if (error) {
+        alert("Gagal menyimpan pengaturan Pterodactyl: " + error.message);
+        console.error("Error saving Pterodactyl global settings:", error);
+        return;
+      }
+
+      alert("Pengaturan Pterodactyl berhasil disimpan!");
+      loadPterodactylSettings();
+    }
+
+    // END NEW: Pterodactyl Config Management
+
     async function loadProducts() {
-      const { data, error } = await window.supabase.from("products").select("*");
+      await loadPterodactylConfigs(); // Load configs before products
+
+      const { data, error } = await window.supabase
+        .from("products")
+        .select(`
+          *,
+          pterodactyl_configs (
+            name as config_name,
+            egg_id,
+            nest_id,
+            location_id,
+            memory,
+            cpu,
+            disk
+          )
+        `)
+        .order("name", { ascending: true });
       if (error) return console.error(error);
 
       const container = document.getElementById("productsList");
@@ -68,10 +264,11 @@
               <button onclick="updateProductStock('${p.id}', ${p.stock - 1})" class="admin-button">-</button>
               <button onclick="updateProductStock('${p.id}', ${p.stock + 1})" class="admin-button">+</button>
             `;
-          } else if (p.category === 'panel_pterodactyl') {
+          } else if (p.category === 'panel_pterodactyl' && p.pterodactyl_configs) {
             pterodactylConfigInfo = `
-              <br>Egg ID: ${p.egg_id || '-'}, Nest ID: ${p.nest_id || '-'}, Location ID: ${p.location_id || '-'}
-              <br>Memory: ${p.memory || '-'}MB, CPU: ${p.cpu || '-'}%, Disk: ${p.disk || '-'}MB
+              <br>Paket: <strong>${p.pterodactyl_configs.config_name || 'N/A'}</strong>
+              <br>Egg ID: ${p.pterodactyl_configs.egg_id || '-'}, Nest ID: ${p.pterodactyl_configs.nest_id || '-'}, Location ID: ${p.pterodactyl_configs.location_id || '-'}
+              <br>Memory: ${p.pterodactyl_configs.memory || '-'}MB, CPU: ${p.pterodactyl_configs.cpu || '-'}%, Disk: ${p.pterodactyl_configs.disk || '-'}MB
             `;
           }
 
@@ -91,6 +288,18 @@
       } else {
         container.innerHTML = "<p>Tidak ada produk.</p>";
       }
+      populatePterodactylConfigDropdown(); // Populate dropdown after loading configs
+    }
+
+    function populatePterodactylConfigDropdown() {
+      const select = document.getElementById("pterodactylConfigId");
+      select.innerHTML = '<option value="">Pilih Konfigurasi Pterodactyl</option>';
+      pterodactylConfigs.forEach(config => {
+        const option = document.createElement("option");
+        option.value = config.id;
+        option.textContent = config.name;
+        select.appendChild(option);
+      });
     }
 
     async function addProduct(event) {
@@ -99,6 +308,7 @@
       const price = parseInt(document.getElementById("productPrice").value, 10);
       const category = document.getElementById("productCategory").value;
       const stock = parseInt(document.getElementById("productStock").value, 10);
+      const pterodactylConfigId = document.getElementById("pterodactylConfigId").value; // NEW
       const file = document.getElementById("productImage").files[0];
 
       if (!name || !price || !category || !file) {
@@ -111,36 +321,10 @@
         return;
       }
 
-      let pterodactylConfig = {};
-      if (category === 'panel_pterodactyl') {
-        pterodactylConfig = {
-          egg_id: parseInt(document.getElementById("eggId").value, 10),
-          nest_id: parseInt(document.getElementById("nestId").value, 10),
-          location_id: parseInt(document.getElementById("locationId").value, 10),
-          memory: parseInt(document.getElementById("memory").value, 10),
-          cpu: parseInt(document.getElementById("cpu").value, 10),
-          disk: parseInt(document.getElementById("disk").value, 10),
-          swap: parseInt(document.getElementById("swap").value, 10),
-          io: parseInt(document.getElementById("io").value, 10),
-          databases: parseInt(document.getElementById("databases").value, 10),
-          allocations: parseInt(document.getElementById("allocations").value, 10),
-          backups: parseInt(document.getElementById("backups").value, 10),
-          startup_script: document.getElementById("startupScript").value,
-          server_name_prefix: document.getElementById("serverNamePrefix").value,
-        };
-
-        for (const key in pterodactylConfig) {
-          if (key !== 'startup_script' && key !== 'server_name_prefix' && isNaN(pterodactylConfig[key])) {
-            alert(`Field Pterodactyl '${key}' harus berupa angka.`);
-            return;
-          }
-        }
-        if (!pterodactylConfig.egg_id || !pterodactylConfig.nest_id || !pterodactylConfig.location_id || !pterodactylConfig.memory || !pterodactylConfig.cpu || !pterodactylConfig.disk) {
-          alert("Lengkapi semua field konfigurasi Pterodactyl yang wajib (Egg, Nest, Location, Memory, CPU, Disk)!");
-          return;
-        }
+      if (category === 'panel_pterodactyl' && !pterodactylConfigId) { // NEW VALIDATION
+        alert("Pilih konfigurasi Pterodactyl untuk produk panel!");
+        return;
       }
-
 
       if (file.size > 2 * 1024 * 1024) {
         alert("Ukuran gambar terlalu besar. Maksimal 2MB.");
@@ -163,7 +347,7 @@
         active: true,
         category,
         stock: category === 'game_account' ? stock : null,
-        ...(category === 'panel_pterodactyl' ? pterodactylConfig : {})
+        pterodactyl_config_id: category === 'panel_pterodactyl' ? pterodactylConfigId : null, // NEW
       };
 
       const { error } = await window.supabase.from("products").insert([productData]);
@@ -285,7 +469,16 @@
         .from("orders")
         .update({ status: newStatus })
         .eq("id", orderId)
-        .select("id, user_id, product_id, status, payment_proof, contact_email, pterodactyl_server_id, products(category, name)")
+        .select(`
+          id,
+          user_id,
+          product_id,
+          status,
+          payment_proof,
+          contact_email,
+          pterodactyl_server_id,
+          products(category, name, pterodactyl_config_id)
+        `)
         .single();
 
       if (error) {
@@ -306,6 +499,10 @@
         }
       }
 
+      // Fetch Pterodactyl Panel URL for notification
+      const { data: settingsData } = await window.supabase.from("settings").select("pterodactyl_panel_url").single();
+      const pterodactylPanelUrl = settingsData?.pterodactyl_panel_url || "-";
+
       await fetch("/api/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -314,12 +511,13 @@
             id: orderData.id,
             username: userData?.username || "Unknown User",
             product_name: orderData.products.name || "Unknown Product",
+            payment_method: "qris",
             payment_proof: orderData.payment_proof,
             status: orderData.status,
-            payment_method: "qris",
             contact_email: orderData.contact_email,
             product_category: orderData.products.category,
             pterodactyl_server_id: orderData.pterodactyl_server_id,
+            pterodactyl_panel_url: pterodactylPanelUrl, // Pass to notify API
           }],
         }),
       });
@@ -596,23 +794,23 @@
 
     window.onload = checkAdminAuth;
 
-    // Function to toggle Pterodactyl config fields
+    // Function to toggle Pterodactyl config fields in Add Product form
     function togglePterodactylFields() {
       const category = document.getElementById("productCategory").value;
-      const pterodactylConfig = document.getElementById("pterodactylConfig");
+      const pterodactylConfigDropdown = document.getElementById("pterodactylConfigDropdown");
       const productStock = document.getElementById("productStock");
 
       if (category === "panel_pterodactyl") {
-        pterodactylConfig.style.display = "block";
+        pterodactylConfigDropdown.style.display = "block";
         productStock.style.display = "none";
         productStock.value = "0";
         productStock.removeAttribute("required");
       } else if (category === "game_account") {
-        pterodactylConfig.style.display = "none";
+        pterodactylConfigDropdown.style.display = "none";
         productStock.style.display = "block";
         productStock.setAttribute("required", "required");
       } else {
-        pterodactylConfig.style.display = "none";
+        pterodactylConfigDropdown.style.display = "none";
         productStock.style.display = "block";
         productStock.setAttribute("required", "required");
       }
@@ -671,6 +869,30 @@
       width: calc(100% - 1rem);
       margin-bottom: 1rem;
     }
+
+    /* NEW: Styling for Pterodactyl Config List Items */
+    .pterodactyl-config-item {
+      background: #0d1117;
+      padding: 1rem;
+      margin-bottom: 0.8rem;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .pterodactyl-config-item p {
+      margin: 0;
+      color: #a0aec0;
+    }
+    .pterodactyl-config-item p strong {
+      color: #e6edf3;
+    }
+    .config-actions {
+      display: flex;
+      gap: 0.6rem;
+      margin-top: 0.5rem;
+    }
   </style>
 </head>
 <body>
@@ -679,7 +901,8 @@
       <button onclick="showSection('products')">Produk</button>
       <button onclick="showSection('orders')">Pesanan</button>
       <button onclick="showSection('ratings')">Rating & Komentar</button>
-      <button onclick="showSection('settings')">Pengaturan</button>
+      <button onclick="showSection('settings')">Pengaturan Umum</button>
+      <button onclick="showSection('pterodactyl-settings')">Pengaturan Pterodactyl</button> <!-- NEW NAV BUTTON -->
       <button onclick="logout()">Logout</button>
     </nav>
   </header>
@@ -699,35 +922,14 @@
         <input type="number" id="productStock" placeholder="Stok (hanya untuk Akun Game)" min="0" value="0">
         <input type="file" id="productImage" accept="image/*" required>
 
-        <!-- NEW: Pterodactyl Configuration Fields -->
-        <div id="pterodactylConfig" class="pterodactyl-config-fields" style="display:none;">
-          <h3>Konfigurasi Pterodactyl</h3>
-          <label for="eggId">Egg ID:</label>
-          <input type="number" id="eggId" placeholder="Contoh: 1 (Minecraft Java)" value="1">
-          <label for="nestId">Nest ID:</label>
-          <input type="number" id="nestId" placeholder="Contoh: 1 (Minecraft)" value="1">
-          <label for="locationId">Location ID:</label>
-          <input type="number" id="locationId" placeholder="Contoh: 1 (US-East)" value="1">
-          <label for="memory">Memory (MB):</label>
-          <input type="number" id="memory" placeholder="Contoh: 1024" value="1024">
-          <label for="cpu">CPU (%):</label>
-          <input type="number" id="cpu" placeholder="Contoh: 100" value="100">
-          <label for="disk">Disk (MB):</label>
-          <input type="number" id="disk" placeholder="Contoh: 10240" value="10240">
-          <label for="swap">Swap (MB):</label>
-          <input type="number" id="swap" placeholder="Contoh: 0" value="0">
-          <label for="io">IO (Block I/O):</label>
-          <input type="number" id="io" placeholder="Contoh: 500" value="500">
-          <label for="databases">Databases:</label>
-          <input type="number" id="databases" placeholder="Contoh: 0" value="0">
-          <label for="allocations">Allocations:</label>
-          <input type="number" id="allocations" placeholder="Contoh: 1" value="1">
-          <label for="backups">Backups:</label>
-          <input type="number" id="backups" placeholder="Contoh: 0" value="0">
-          <label for="startupScript">Startup Script:</label>
-          <input type="text" id="startupScript" placeholder="Contoh: java -jar server.jar">
-          <label for="serverNamePrefix">Server Name Prefix:</label>
-          <input type="text" id="serverNamePrefix" placeholder="Contoh: MyServer" value="Server">
+        <!-- NEW: Pterodactyl Configuration Dropdown -->
+        <div id="pterodactylConfigDropdown" class="pterodactyl-config-fields" style="display:none;">
+          <h3>Pilih Paket Pterodactyl</h3>
+          <label for="pterodactylConfigId">Pilih Konfigurasi:</label>
+          <select id="pterodactylConfigId" required>
+            <option value="">Pilih Konfigurasi Pterodactyl</option>
+            <!-- Options will be populated by JS -->
+          </select>
         </div>
 
         <button type="submit" class="admin-button">Tambah Produk</button>
@@ -770,7 +972,7 @@
       </div>
     </section>
 
-    <!-- Pengaturan -->
+    <!-- Pengaturan Umum -->
     <section id="settings" style="display:none;">
       <h2>Pengaturan QRIS</h2>
       <form id="uploadQrisForm" onsubmit="uploadQrisImage(event)">
@@ -791,6 +993,48 @@
         <textarea id="announcementText" rows="5" placeholder="Masukkan teks pengumuman di sini..."></textarea>
         <button type="submit" class="admin-button">Simpan Pengumuman</button>
       </form>
+    </section>
+
+    <!-- NEW SECTION: Pengaturan Pterodactyl -->
+    <section id="pterodactyl-settings" style="display:none;">
+      <h2>Pengaturan Global Pterodactyl</h2>
+      <form id="pterodactylGlobalSettingsForm" onsubmit="savePterodactylGlobalSettings(event)">
+        <label for="pterodactylPanelUrl">URL Panel Pterodactyl:</label>
+        <input type="url" id="pterodactylPanelUrl" placeholder="Contoh: https://panel.example.com" required>
+        <label for="pterodactylApiKey">Application API Key Pterodactyl:</label>
+        <input type="text" id="pterodactylApiKey" placeholder="Contoh: ptla_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" required>
+        <button type="submit" class="admin-button">Simpan Pengaturan Pterodactyl</button>
+      </form>
+
+      <h2 style="margin-top: 3rem;">Tambah/Edit Konfigurasi Paket Pterodactyl</h2>
+      <form id="pterodactylConfigForm" onsubmit="addOrUpdatePterodactylConfig(event)">
+        <input type="hidden" id="configId">
+        <label for="configName">Nama Paket (Contoh: 1GB RAM, 9GB RAM, Unlimited):</label>
+        <input type="text" id="configName" placeholder="Nama Paket" required>
+        <label for="configEggId">Egg ID:</label>
+        <input type="number" id="configEggId" placeholder="Contoh: 1 (Minecraft Java)" value="1" required>
+        <label for="configNestId">Nest ID:</label>
+        <input type="number" id="configNestId" placeholder="Contoh: 1 (Minecraft)" value="1" required>
+        <label for="configLocationId">Location ID:</label>
+        <input type="number" id="configLocationId" placeholder="Contoh: 1 (US-East)" value="1" required>
+        <label for="configMemory">Memory (MB):</label>
+        <input type="number" id="configMemory" placeholder="Contoh: 1024" value="1024" required>
+        <label for="configCpu">CPU (%):</label>
+        <input type="number" id="configCpu" placeholder="Contoh: 100" value="100" required>
+        <label for="configDisk">Disk (MB):</label>
+        <input type="number" id="configDisk" placeholder="Contoh: 10240" value="10240" required>
+        <label for="configSwap">Swap (MB):</label>
+        <input type="number" id="configSwap" placeholder="Contoh: 0" value="0">
+        <label for="configIo">IO (Block I/O):</label>
+        <input type="number" id="configIo" placeholder="Contoh: 500" value="500">
+        <!-- Removed: Databases, Allocations, Backups, Startup Script, Server Name Prefix -->
+        <button type="submit" class="admin-button">Simpan Konfigurasi Paket</button>
+      </form>
+
+      <h2 style="margin-top: 3rem;">Daftar Konfigurasi Paket Pterodactyl</h2>
+      <div id="pterodactylConfigsList">
+        <!-- List of Pterodactyl configs will be loaded here by JS -->
+      </div>
     </section>
   </main>
 
