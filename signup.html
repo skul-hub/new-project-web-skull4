@@ -19,13 +19,13 @@
       event.preventDefault();
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
-      const username = document.getElementById("username").value;
+      const username = document.getElementById("username").value; // Ambil username dari input
 
       const { data, error } = await window.supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { username },
+          data: { username: username }, // PENTING: Kirim username di options.data
         },
       });
 
