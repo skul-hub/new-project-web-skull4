@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard - STORESKULL</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // config.js content
+    const supabaseUrl = 'https://pfjpwfpnirbwfmfpmkuc.supabase.co'; // GANTI DENGAN URL SUPABASE ANDA
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBmanB3ZnBuaXJid2ZtZnBta3VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3ODQ5MTcsImV4cCI6MjA3MzM2MDkxN30.EadYOACg3gj79nsDkSc4NWStQyr2BokNVkVilgWWoX8'; // GANTI DENGAN ANON KEY SUPABASE ANDA
+    const { createClient } = supabase;
+    window.supabase = createClient(supabaseUrl, supabaseKey);
+  </script>
+  <script>
+    // admin-dashboard.js content
+    let currentAdmin = null;
+
+    async function checkAdminAuth() {
+      const { data: { user }, error } = await window.supabase.auth.getUser();
+      if (error || !user) {
+        window.location.href = "signin.html";
+        return;
+      }
+
+      const { data: userData } = await window.supabase.from("users").select("*").eq("id", user.id).single();
+      if (!userData || userData.role !== "admin") {
+        alert("Akses ditolak.");
+        window.location.href = "signin.html";
+        return;
+      }
+
+      currentAdmin = userData;
+      showSection("products");
+    }
+
+    function showSection(section) {
+      document.getElementById("products").style.display = "none";
+      document.getElementById("orders").style.display = "none";
+      document.getElementById("settings").style.display = "none";
+      document.getElementById("ratings").style.display = "none";
+      document.getElementById(section).style.display = "block";
+
+      if (section === "products") loadProducts();
+      if (section === "orders") loadOrders();
+      if (section === "settings") loadQrisSettings();
+      if (section === "ratings") loadRatings();
+    }
+
+    async function loadProducts() {
+      const { data, error } = await window.supabase.from("products").select("*");
+      if (error) return console.error(error);
+
+      const container = document.getElementById("productsList");
+      container.innerHTML = "";
+
+      if (data && data.length > 0) {
+        data.forEach((p) => {
+          const safeName = p.name.replace(/'/g, "\\'");
+          let stockInfo = '';
+          let stockButtons = '';
+          let pterodactylConfigInfo = '';
+
+          if (p.category === 'game_account') {
+            stockInfo = ` | Stok: <strong>${p.stock}</strong>`;
+            stockButtons = `
+              <button onclick="updateProductStock('${p.id}', ${p.stock - 1})" class="admin-button">-</button>
+              <button onclick="updateProductStock('${p.id}', ${p.stock + 1})" class="admin-button">+</button>
+            `;
+          } else if (p.category === 'panel_pterodactyl') {
+            pterodactylConfigInfo = `
+              <br>Egg ID: ${p.egg_id || '-'}, Nest ID: ${p.nest_id || '-'}, Location ID: ${p.location_id || '-'}
+              <br>Memory: ${p.memory || '-'}MB, CPU: ${p.cpu || '-'}%, Disk: ${p.disk || '-'}MB
+            `;
+          }
+
+          const div = document.createElement("div");
+          div.innerHTML = `
+            <p><strong>${p.name}</strong> - Rp ${p.price.toLocaleString()} (${p.category === 'panel_pterodactyl' ? 'Panel Pterodactyl' : 'Akun Game'})${stockInfo}${pterodactylConfigInfo}</p>
+            <div class="product-actions">
+              ${stockButtons}
+              <button onclick="deleteProduct('${p.id}')" class="admin-button delete">🗑️ Hapus</button>
+              <button onclick="toggleProduct('${p.id}', ${p.active ? "false" : "true"})" class="admin-button">
+                ${p.active ? "Nonaktifkan" : "Aktifkan"}
+              </button>
+            </div>
+          `;
+          container.appendChild(div);
+        });
+      } else {
+        container.innerHTML = "<p>Tidak ada produk.</p>";
+      }
+    }
+
+    async function addProduct(event) {
+      event.preventDefault();
+      const name = document.getElementById("productName").value;
+      const price = parseInt(document.getElementById("productPrice").value, 10);
+      const category = document.getElementById("productCategory").value;
+      const stock = parseInt(document.getElementById("productStock").value, 10);
+      const file = document.getElementById("productImage").files[0];
+
+      if (!name || !price || !category || !file) {
+        alert("Lengkapi semua field!");
+        return;
+      }
+
+      if (category === 'game_account' && (isNaN(stock) || stock < 0)) {
+        alert("Stok harus angka non-negatif untuk Akun Game.");
+        return;
+      }
+
+      let pterodactylConfig = {};
+      if (category === 'panel_pterodactyl') {
+        pterodactylConfig = {
+          egg_id: parseInt(document.getElementById("eggId").value, 10),
+          nest_id: parseInt(document.getElementById("nestId").value, 10),
+          location_id: parseInt(document.getElementById("locationId").value, 10),
+          memory: parseInt(document.getElementById("memory").value, 10),
+          cpu: parseInt(document.getElementById("cpu").value, 10),
+          disk: parseInt(document.getElementById("disk").value, 10),
+          swap: parseInt(document.getElementById("swap").value, 10),
+          io: parseInt(document.getElementById("io").value, 10),
+          databases: parseInt(document.getElementById("databases").value, 10),
+          allocations: parseInt(document.getElementById("allocations").value, 10),
+          backups: parseInt(document.getElementById("backups").value, 10),
+          startup_script: document.getElementById("startupScript").value,
+          server_name_prefix: document.getElementById("serverNamePrefix").value,
+        };
+
+        for (const key in pterodactylConfig) {
+          if (key !== 'startup_script' && key !== 'server_name_prefix' && isNaN(pterodactylConfig[key])) {
+            alert(`Field Pterodactyl '${key}' harus berupa angka.`);
+            return;
+          }
+        }
+        if (!pterodactylConfig.egg_id || !pterodactylConfig.nest_id || !pterodactylConfig.location_id || !pterodactylConfig.memory || !pterodactylConfig.cpu || !pterodactylConfig.disk) {
+          alert("Lengkapi semua field konfigurasi Pterodactyl yang wajib (Egg, Nest, Location, Memory, CPU, Disk)!");
+          return;
+        }
+      }
+
+
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Ukuran gambar terlalu besar. Maksimal 2MB.");
+        return;
+      }
+
+      const fileName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
+      const { error: upErr } = await window.supabase.storage.from("product-images").upload(fileName, file);
+      if (upErr) {
+        alert("Upload gagal: " + upErr.message);
+        return;
+      }
+
+      const { data: urlData } = window.supabase.storage.from("product-images").getPublicUrl(fileName);
+
+      const productData = {
+        name,
+        price,
+        image: urlData.publicUrl,
+        active: true,
+        category,
+        stock: category === 'game_account' ? stock : null,
+        ...(category === 'panel_pterodactyl' ? pterodactylConfig : {})
+      };
+
+      const { error } = await window.supabase.from("products").insert([productData]);
+      if (error) {
+        alert("Gagal tambah produk: " + error.message);
+        return;
+      }
+
+      alert("Produk berhasil ditambahkan!");
+      document.getElementById("addProductForm").reset();
+      document.getElementById("productImage").value = "";
+      togglePterodactylFields();
+      loadProducts();
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm("Yakin ingin menghapus produk ini?")) return;
+      const { error } = await window.supabase.from("products").delete().eq("id", id);
+      if (error) {
+        alert("Gagal menghapus produk: " + error.message);
+        return;
+      }
+      alert("Produk berhasil dihapus.");
+      loadProducts();
+    }
+
+    async function toggleProduct(id, newStatus) {
+      const { error } = await window.supabase
+        .from("products")
+        .update({ active: newStatus })
+        .eq("id", id);
+
+      if (error) {
+        alert("Gagal mengubah status produk: " + error.message);
+        return;
+      }
+
+      alert(`Produk berhasil di${newStatus ? "aktifkan" : "nonaktifkan"}.`);
+      loadProducts();
+    }
+
+    async function updateProductStock(id, newStock) {
+      if (newStock < 0) {
+        alert("Stok tidak bisa kurang dari 0.");
+        return;
+      }
+      const { error } = await window.supabase
+        .from("products")
+        .update({ stock: newStock })
+        .eq("id", id);
+
+      if (error) {
+        alert("Gagal mengubah stok produk: " + error.message);
+        return;
+      }
+
+      alert("Stok produk berhasil diupdate.");
+      loadProducts();
+    }
+
+
+    async function loadOrders() {
+      const { data, error } = await window.supabase
+        .from("orders_view")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) return console.error(error);
+
+      const container = document.getElementById("ordersList");
+      container.innerHTML = "";
+
+      if (data && data.length > 0) {
+        for (const o of data) {
+          const div = document.createElement("div");
+          div.className = "order";
+
+          let provisionButton = '';
+          if (o.product_category === 'panel_pterodactyl' && o.status === 'payment_received' && !o.pterodactyl_server_id) {
+            provisionButton = `<button onclick="provisionPterodactylServer('${o.id}')" class="admin-button" style="background: #007bff;">Provision Server</button>`;
+          } else if (o.product_category === 'panel_pterodactyl' && o.pterodactyl_server_id) {
+            provisionButton = `<span style="color: #28a745; margin-left: 10px;">Server Provisioned (ID: ${o.pterodactyl_server_id.substring(0, 8)}...)</span>`;
+          }
+
+
+          div.innerHTML = `
+            <p>Order ID: ${o.id}</p>
+            <p>User: ${o.username}</p>
+            <p>Produk: ${o.product_name} - Rp ${o.product_price.toLocaleString()} (${o.product_category === 'panel_pterodactyl' ? 'Panel Pterodactyl' : 'Akun Game'})</p>
+            <p>Status Saat Ini: ${o.status.replace(/_/g, ' ').toUpperCase()}</p>
+            <p>Bukti TF: ${
+              o.payment_proof ? `<a href="${o.payment_proof}" target="_blank">Lihat</a>` : "-"
+            }</p>
+            <p>Email Kontak: ${o.contact_email || "-"}</p>
+            <div class="order-actions">
+              <select id="status-${o.id}">
+                <option value="">--Pilih Status Baru--</option>
+                <option value="waiting_confirmation" ${o.status === 'waiting_confirmation' ? 'selected' : ''}>Menunggu Konfirmasi</option>
+                <option value="payment_received" ${o.status === 'payment_received' ? 'selected' : ''}>Pembayaran Diterima</option>
+                <option value="payment_failed" ${o.status === 'payment_failed' ? 'selected' : ''}>Pembayaran Gagal</option>
+                <option value="done" ${o.status === 'done' ? 'selected' : ''}>Pesanan Selesai</option>
+              </select>
+              <button onclick="saveOrderStatus('${o.id}')" class="admin-button">Update Status</button>
+              ${provisionButton}
+            </div>
+          `;
+          container.appendChild(div);
+        }
+      } else {
+        container.innerHTML = "<p>Belum ada pesanan.</p>";
+      }
+    }
+
+    async function saveOrderStatus(orderId) {
+      const newStatus = document.getElementById(`status-${orderId}`).value;
+      if (!newStatus) return alert("Pilih status baru dulu.");
+
+      const { error, data: orderData } = await window.supabase
+        .from("orders")
+        .update({ status: newStatus })
+        .eq("id", orderId)
+        .select("id, user_id, product_id, status, payment_proof, contact_email, pterodactyl_server_id, products(category, name)")
+        .single();
+
+      if (error) {
+        alert("Gagal update: " + error.message);
+        return;
+      }
+
+      const { data: userData } = await window.supabase
+        .from("users")
+        .select("username")
+        .eq("id", orderData.user_id)
+        .single();
+
+      if ((newStatus === 'payment_received' || newStatus === 'done') && orderData.products.category === 'panel_pterodactyl' && !orderData.pterodactyl_server_id) {
+        const confirmProvision = confirm("Pembayaran diterima untuk produk Pterodactyl. Apakah Anda ingin langsung memprovision server?");
+        if (confirmProvision) {
+          await provisionPterodactylServer(orderId);
+        }
+      }
+
+      await fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orders: [{
+            id: orderData.id,
+            username: userData?.username || "Unknown User",
+            product_name: orderData.products.name || "Unknown Product",
+            payment_proof: orderData.payment_proof,
+            status: orderData.status,
+            payment_method: "qris",
+            contact_email: orderData.contact_email,
+            product_category: orderData.products.category,
+            pterodactyl_server_id: orderData.pterodactyl_server_id,
+          }],
+        }),
+      });
+
+      alert("✅ Status pesanan berhasil diupdate.");
+      loadOrders();
+    }
+
+    async function provisionPterodactylServer(orderId) {
+      if (!confirm("Yakin ingin memprovision server Pterodactyl untuk pesanan ini? Ini akan membuat server dan mengirim detail ke pengguna.")) {
+        return;
+      }
+
+      const button = event.target;
+      button.disabled = true;
+      button.textContent = "Processing...";
+
+      try {
+        const response = await fetch("/api/provision-pterodactyl", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order_id: orderId }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          alert("✅ Server Pterodactyl berhasil diprovision dan detail dikirim ke pengguna!");
+          loadOrders();
+        } else {
+          alert("❌ Gagal memprovision server Pterodactyl: " + (result.error || "Unknown error"));
+          console.error("Provisioning error:", result);
+        }
+      } catch (error) {
+        alert("❌ Terjadi kesalahan saat memanggil API provisioning: " + error.message);
+        console.error("Fetch error:", error);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Provision Server";
+      }
+    }
+
+
+    async function loadQrisSettings() {
+      const { data, error } = await window.supabase.from("settings").select("qris_image_url, announcement").single();
+      const currentQrisImage = document.getElementById("currentQrisImage");
+      const noQrisMessage = document.getElementById("noQrisMessage");
+      const announcementTextarea = document.getElementById("announcementText");
+
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error loading settings:", error);
+        currentQrisImage.style.display = 'none';
+        noQrisMessage.style.display = 'block';
+        announcementTextarea.value = "";
+        return;
+      }
+
+      if (data) {
+        if (data.qris_image_url) {
+          currentQrisImage.src = data.qris_image_url;
+          currentQrisImage.style.display = 'block';
+          noQrisMessage.style.display = 'none';
+        } else {
+          currentQrisImage.style.display = 'none';
+          noQrisMessage.style.display = 'block';
+        }
+        announcementTextarea.value = data.announcement || "";
+      } else {
+        currentQrisImage.style.display = 'none';
+        noQrisMessage.style.display = 'block';
+        announcementTextarea.value = "";
+      }
+    }
+
+    async function uploadQrisImage(event) {
+      event.preventDefault();
+      const file = document.getElementById("qrisImageFile").files[0];
+
+      if (!file) {
+        alert("Pilih file gambar QRIS untuk diupload!");
+        return;
+      }
+
+      if (file.size > 2 * 1024 * 1024) {
+        alert("Ukuran gambar QRIS terlalu besar. Maksimal 2MB.");
+        return;
+      }
+
+      const fileName = `qris_${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
+      const { error: uploadError } = await window.supabase.storage.from("qris-images").upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
+
+      if (uploadError) {
+        alert("Gagal upload gambar QRIS: " + uploadError.message);
+        return;
+      }
+
+      const { data: urlData } = window.supabase.storage.from("qris-images").getPublicUrl(fileName);
+      const qrisImageUrl = urlData.publicUrl;
+
+      const { data: existingSettings, error: fetchError } = await window.supabase
+        .from("settings")
+        .select("id")
+        .limit(1)
+        .single();
+
+      let error;
+      if (existingSettings) {
+        ({ error } = await window.supabase
+          .from("settings")
+          .update({ qris_image_url: qrisImageUrl, updated_at: new Date() })
+          .eq("id", existingSettings.id));
+      } else {
+        ({ error } = await window.supabase
+          .from("settings")
+          .insert([{ qris_image_url: qrisImageUrl }]));
+      }
+
+      if (error) {
+        alert("Gagal menyimpan URL QRIS: " + error.message);
+        return;
+      }
+
+      alert("Gambar QRIS berhasil diupload dan disimpan!");
+      document.getElementById("uploadQrisForm").reset();
+      loadQrisSettings();
+    }
+
+    async function saveAnnouncement(event) {
+      event.preventDefault();
+      const announcementText = document.getElementById("announcementText").value;
+
+      const { data: existingSettings, error: fetchError } = await window.supabase
+        .from("settings")
+        .select("id")
+        .limit(1)
+        .single();
+
+      let error;
+      if (existingSettings) {
+        ({ error } = await window.supabase
+          .from("settings")
+          .update({ announcement: announcementText, updated_at: new Date() })
+          .eq("id", existingSettings.id));
+      } else {
+        ({ error } = await window.supabase
+          .from("settings")
+          .insert([{ announcement: announcementText }]));
+      }
+
+      if (error) {
+        alert("Gagal menyimpan pengumuman: " + error.message);
+        return;
+      }
+
+      alert("Pengumuman berhasil disimpan!");
+      loadQrisSettings();
+    }
+
+    async function loadRatings() {
+      const { data: ratings, error } = await window.supabase
+        .from("ratings")
+        .select(`
+          id,
+          rating,
+          comment,
+          created_at,
+          users(username),
+          products(name)
+        `)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error loading ratings:", error);
+        return;
+      }
+
+      const container = document.getElementById("ratingsList");
+      container.innerHTML = "";
+
+      if (ratings && ratings.length > 0) {
+        displayRatingStatistics(ratings);
+
+        const table = document.createElement("table");
+        table.className = "ratings-table";
+        table.innerHTML = `
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Produk</th>
+              <th>Rating</th>
+              <th>Komentar</th>
+              <th>Tanggal</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+          </tbody>
+        `;
+        const tbody = table.querySelector("tbody");
+
+        ratings.forEach((r) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td>${r.users ? r.users.username : 'N/A'}</td>
+            <td>${r.products ? r.products.name : 'N/A'}</td>
+            <td>${'⭐'.repeat(r.rating)} (${r.rating}/5)</td>
+            <td>${r.comment || '-'}</td>
+            <td>${new Date(r.created_at).toLocaleString()}</td>
+            <td>
+              <button onclick="deleteRating('${r.id}')" class="admin-button delete">🗑️ Hapus</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+        container.appendChild(table);
+      } else {
+        document.getElementById("totalRatingsCount").textContent = "0";
+        document.getElementById("averageRating").textContent = "0.0";
+        for (let i = 1; i <= 5; i++) {
+          document.getElementById(`star${i}Count`).textContent = "0";
+          document.getElementById(`star${i}Percent`).textContent = "0%";
+          document.getElementById(`star${i}Bar`).style.width = "0%";
+        }
+        container.innerHTML = "<p>Belum ada rating atau komentar.</p>";
+      }
+    }
+
+    async function deleteRating(ratingId) {
+      if (!confirm("Yakin ingin menghapus rating ini?")) return;
+
+      const { error } = await window.supabase.from("ratings").delete().eq("id", ratingId);
+
+      if (error) {
+        alert("Gagal menghapus rating: " + error.message);
+        console.error("Error deleting rating:", error);
+        return;
+      }
+
+      alert("Rating berhasil dihapus.");
+      loadRatings();
+    }
+
+    function displayRatingStatistics(ratings) {
+      const totalRatings = ratings.length;
+      let sumRatings = 0;
+      const starCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+      ratings.forEach(r => {
+        sumRatings += r.rating;
+        starCounts[r.rating]++;
+      });
+
+      const averageRating = totalRatings > 0 ? (sumRatings / totalRatings).toFixed(1) : "0.0";
+
+      document.getElementById("totalRatingsCount").textContent = totalRatings;
+      document.getElementById("averageRating").textContent = averageRating;
+
+      for (let i = 1; i <= 5; i++) {
+        const count = starCounts[i];
+        const percentage = totalRatings > 0 ? ((count / totalRatings) * 100).toFixed(1) : "0.0";
+        document.getElementById(`star${i}Count`).textContent = count;
+        document.getElementById(`star${i}Percent`).textContent = `${percentage}%`;
+        document.getElementById(`star${i}Bar`).style.width = `${percentage}%`;
+      }
+    }
+
+    async function logout() {
+      await window.supabase.auth.signOut();
+      window.location.href = "signin.html";
+    }
+
+    window.onload = checkAdminAuth;
+
+    // Function to toggle Pterodactyl config fields
+    function togglePterodactylFields() {
+      const category = document.getElementById("productCategory").value;
+      const pterodactylConfig = document.getElementById("pterodactylConfig");
+      const productStock = document.getElementById("productStock");
+
+      if (category === "panel_pterodactyl") {
+        pterodactylConfig.style.display = "block";
+        productStock.style.display = "none";
+        productStock.value = "0";
+        productStock.removeAttribute("required");
+      } else if (category === "game_account") {
+        pterodactylConfig.style.display = "none";
+        productStock.style.display = "block";
+        productStock.setAttribute("required", "required");
+      } else {
+        pterodactylConfig.style.display = "none";
+        productStock.style.display = "block";
+        productStock.setAttribute("required", "required");
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', togglePterodactylFields);
+  </script>
+  <style>
+    /* Tambahan styling agar dropdown + tombol rapi */
+    .order select {
+      margin-right: 0.5rem;
+      min-width: 200px;
+    }
+
+    .order-actions {
+      margin-top: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .order-actions button {
+      background: #238636;
+      color: white;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    .order-actions button:hover {
+      background: #2ea043;
+    }
+
+    /* NEW: Styling for Pterodactyl config fields */
+    .pterodactyl-config-fields {
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+      background: #0d1117;
+    }
+    .pterodactyl-config-fields h3 {
+      color: #58a6ff;
+      margin-bottom: 1rem;
+      text-align: left;
+    }
+    .pterodactyl-config-fields label {
+      display: block;
+      margin-bottom: 0.5rem;
+      color: #e6edf3;
+    }
+    .pterodactyl-config-fields input[type="number"],
+    .pterodactyl-config-fields input[type="text"] {
+      width: calc(100% - 1rem);
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav>
+      <button onclick="showSection('products')">Produk</button>
+      <button onclick="showSection('orders')">Pesanan</button>
+      <button onclick="showSection('ratings')">Rating & Komentar</button>
+      <button onclick="showSection('settings')">Pengaturan</button>
+      <button onclick="logout()">Logout</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Produk -->
+    <section id="products">
+      <h2>Tambah Produk</h2>
+      <form id="addProductForm" onsubmit="addProduct(event)">
+        <input type="text" id="productName" placeholder="Nama produk" required>
+        <input type="number" id="productPrice" placeholder="Harga (Rp)" required>
+        <select id="productCategory" required onchange="togglePterodactylFields()">
+          <option value="">Pilih Kategori</option>
+          <option value="panel_pterodactyl">Panel Pterodactyl</option>
+          <option value="game_account">Jual Akun Game</option>
+        </select>
+        <input type="number" id="productStock" placeholder="Stok (hanya untuk Akun Game)" min="0" value="0">
+        <input type="file" id="productImage" accept="image/*" required>
+
+        <!-- NEW: Pterodactyl Configuration Fields -->
+        <div id="pterodactylConfig" class="pterodactyl-config-fields" style="display:none;">
+          <h3>Konfigurasi Pterodactyl</h3>
+          <label for="eggId">Egg ID:</label>
+          <input type="number" id="eggId" placeholder="Contoh: 1 (Minecraft Java)" value="1">
+          <label for="nestId">Nest ID:</label>
+          <input type="number" id="nestId" placeholder="Contoh: 1 (Minecraft)" value="1">
+          <label for="locationId">Location ID:</label>
+          <input type="number" id="locationId" placeholder="Contoh: 1 (US-East)" value="1">
+          <label for="memory">Memory (MB):</label>
+          <input type="number" id="memory" placeholder="Contoh: 1024" value="1024">
+          <label for="cpu">CPU (%):</label>
+          <input type="number" id="cpu" placeholder="Contoh: 100" value="100">
+          <label for="disk">Disk (MB):</label>
+          <input type="number" id="disk" placeholder="Contoh: 10240" value="10240">
+          <label for="swap">Swap (MB):</label>
+          <input type="number" id="swap" placeholder="Contoh: 0" value="0">
+          <label for="io">IO (Block I/O):</label>
+          <input type="number" id="io" placeholder="Contoh: 500" value="500">
+          <label for="databases">Databases:</label>
+          <input type="number" id="databases" placeholder="Contoh: 0" value="0">
+          <label for="allocations">Allocations:</label>
+          <input type="number" id="allocations" placeholder="Contoh: 1" value="1">
+          <label for="backups">Backups:</label>
+          <input type="number" id="backups" placeholder="Contoh: 0" value="0">
+          <label for="startupScript">Startup Script:</label>
+          <input type="text" id="startupScript" placeholder="Contoh: java -jar server.jar">
+          <label for="serverNamePrefix">Server Name Prefix:</label>
+          <input type="text" id="serverNamePrefix" placeholder="Contoh: MyServer" value="Server">
+        </div>
+
+        <button type="submit" class="admin-button">Tambah Produk</button>
+      </form>
+
+      <h2>Daftar Produk</h2>
+      <div id="productsList"></div>
+    </section>
+
+    <!-- Pesanan -->
+    <section id="orders" style="display:none;">
+      <h2>Daftar Pesanan</h2>
+      <div id="ordersList"></div>
+    </section>
+
+    <!-- Rating & Komentar -->
+    <section id="ratings" style="display:none;">
+      <h2>Rating & Komentar Pengguna</h2>
+
+      <div class="rating-summary">
+        <h3>Statistik Rating</h3>
+        <div id="ratingStats">
+          <p>Total Rating: <strong id="totalRatingsCount">0</strong></p>
+          <p>Rata-rata Rating: <strong id="averageRating">0.0</strong></p>
+          <p>Bintang 5: <strong id="star5Count">0</strong> (<span id="star5Percent">0%</span>)
+            <div class="progress-bar-container"><div id="star5Bar" class="progress-bar"></div></div></p>
+          <p>Bintang 4: <strong id="star4Count">0</strong> (<span id="star4Percent">0%</span>)
+            <div class="progress-bar-container"><div id="star4Bar" class="progress-bar"></div></div></p>
+          <p>Bintang 3: <strong id="star3Count">0</strong> (<span id="star3Percent">0%</span>)
+            <div class="progress-bar-container"><div id="star3Bar" class="progress-bar"></div></div></p>
+          <p>Bintang 2: <strong id="star2Count">0</strong> (<span id="star2Percent">0%</span>)
+            <div class="progress-bar-container"><div id="star2Bar" class="progress-bar"></div></div></p>
+          <p>Bintang 1: <strong id="star1Count">0</strong> (<span id="star1Percent">0%</span>)
+            <div class="progress-bar-container"><div id="star1Bar" class="progress-bar"></div></div></p>
+        </div>
+      </div>
+
+      <div id="ratingsList">
+        <!-- Daftar rating akan dimuat di sini oleh JS -->
+      </div>
+    </section>
+
+    <!-- Pengaturan -->
+    <section id="settings" style="display:none;">
+      <h2>Pengaturan QRIS</h2>
+      <form id="uploadQrisForm" onsubmit="uploadQrisImage(event)">
+        <label for="qrisImageFile">Upload Gambar QRIS Baru:</label>
+        <input type="file" id="qrisImageFile" accept="image/*" required>
+        <button type="submit" class="admin-button">Upload & Simpan QRIS</button>
+      </form>
+
+      <div style="margin-top: 20px;">
+        <h3>QRIS Saat Ini:</h3>
+        <img id="currentQrisImage" src="" alt="QRIS Saat Ini" style="max-width: 200px; height: auto; border: 1px solid #238636; border-radius: 8px; display: none;">
+        <p id="noQrisMessage" style="color: #a0aec0;">Belum ada gambar QRIS diatur.</p>
+      </div>
+
+      <h2 style="margin-top: 3rem;">Pengaturan Pengumuman</h2>
+      <form id="announcementForm" onsubmit="saveAnnouncement(event)">
+        <label for="announcementText">Teks Pengumuman:</label>
+        <textarea id="announcementText" rows="5" placeholder="Masukkan teks pengumuman di sini..."></textarea>
+        <button type="submit" class="admin-button">Simpan Pengumuman</button>
+      </form>
+    </section>
+  </main>
+
+  <footer>
+    <p>&copy; 2025 STORESKULL</p>
+  </footer>
+</body>
+</html>
