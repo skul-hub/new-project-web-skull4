@@ -8,8 +8,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // config.js content
-    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // GANTI DENGAN URL SUPABASE ANDA
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // GANTI DENGAN ANON KEY SUPABASE ANDA
+    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // UPDATED SUPABASE URL
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // UPDATED SUPABASE KEY
     const { createClient } = supabase;
     window.supabase = createClient(supabaseUrl, supabaseKey);
   </script>
@@ -21,6 +21,7 @@
     let uploadedProofUrl = null;
     let allProducts = [];
     let currentCategory = 'panel_pterodactyl';
+    let pterodactylPanelUrl = '#'; // Global variable for Pterodactyl Panel URL
 
     async function checkUserAuth() {
       const { data: { user }, error } = await window.supabase.auth.getUser();
@@ -43,8 +44,19 @@
       }
 
       currentUser = userData;
+      await loadGlobalSettings(); // Load global settings including Pterodactyl Panel URL
       showSection("products");
       loadAnnouncement();
+    }
+
+    async function loadGlobalSettings() {
+      const { data, error } = await window.supabase.from("settings").select("pterodactyl_panel_url").single();
+      if (error && error.code !== 'PGRST116') {
+        console.error("Error loading global settings:", error);
+      }
+      if (data && data.pterodactyl_panel_url) {
+        pterodactylPanelUrl = data.pterodactyl_panel_url;
+      }
     }
 
     async function loadProducts() {
@@ -347,6 +359,7 @@
         status: "waiting_confirmation",
         product_category: p.category,
         pterodactyl_server_id: data.pterodactyl_server_id,
+        pterodactyl_panel_url: pterodactylPanelUrl, // Pass global panel URL
       };
     }
 
@@ -509,7 +522,7 @@
           let pterodactylInfo = '';
           if (o.product_category === 'panel_pterodactyl' && o.status === 'done' && o.pterodactyl_server_id) {
             pterodactylInfo = `<p><b>Server ID Pterodactyl:</b> <code>${o.pterodactyl_server_id}</code></p>
-                                <p><b>URL Panel:</b> <a href="${process.env.PTERODACTYL_PANEL_URL || '#'}" target="_blank">${process.env.PTERODACTYL_PANEL_URL || 'N/A'}</a></p>`;
+                                <p><b>URL Panel:</b> <a href="${pterodactylPanelUrl || '#'}" target="_blank">${pterodactylPanelUrl || 'N/A'}</a></p>`;
           } else if (o.product_category === 'panel_pterodactyl' && o.status !== 'done') {
             pterodactylInfo = `<p><i>Server Pterodactyl akan diprovision setelah pesanan selesai.</i></p>`;
           }
