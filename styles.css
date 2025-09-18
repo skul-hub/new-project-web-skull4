@@ -946,7 +946,9 @@ footer {
   font-size: 0.95rem;
 }
 .pterodactyl-config-fields input[type="number"],
-.pterodactyl-config-fields input[type="text"] {
+.pterodactyl-config-fields input[type="text"],
+.pterodactyl-config-fields input[type="url"],
+.pterodactyl-config-fields select {
   width: 100%; /* Full width */
   margin-bottom: 1rem;
   padding: 0.8rem;
@@ -956,9 +958,35 @@ footer {
   color: #e6edf3;
   font-size: 0.95rem;
 }
-.pterodactyl-config-fields input:focus {
+.pterodactyl-config-fields input:focus,
+.pterodactyl-config-fields select:focus {
   border-color: #58a6ff;
   box-shadow: 0 0 6px rgba(88, 166, 255, 0.4);
+}
+
+
+/* NEW: Styling for Pterodactyl Config List Items */
+.pterodactyl-config-item {
+  background: #0d1117;
+  padding: 1rem;
+  margin-bottom: 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #30363d;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.pterodactyl-config-item p {
+  margin: 0;
+  color: #a0aec0;
+}
+.pterodactyl-config-item p strong {
+  color: #e6edf3;
+}
+.config-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.5rem;
 }
 
 
@@ -1293,7 +1321,9 @@ footer {
     font-size: 0.9rem;
   }
   .pterodactyl-config-fields input[type="number"],
-  .pterodactyl-config-fields input[type="text"] {
+  .pterodactyl-config-fields input[type="text"],
+  .pterodactyl-config-fields input[type="url"],
+  .pterodactyl-config-fields select {
     padding: 0.7rem;
     font-size: 0.9rem;
   }
