@@ -9,7 +9,7 @@
   <script>
     // config.js content
     const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // UPDATED SUPABASE URL
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // UPDATED SUPABASE KEY
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdHvdFmoyOqLAEYCOP1TIhKmroA'; // UPDATED SUPABASE KEY
     const { createClient } = supabase;
     window.supabase = createClient(supabaseUrl, supabaseKey);
   </script>
@@ -53,12 +53,15 @@
 
     // NEW: Pterodactyl Config Management
     async function loadPterodactylConfigs() {
+      console.log("Attempting to load Pterodactyl configs...");
       const { data, error } = await window.supabase.from("pterodactyl_configs").select("*").order("name", { ascending: true });
       if (error) {
         console.error("Error loading Pterodactyl configs:", error);
+        alert("Gagal memuat konfigurasi Pterodactyl: " + error.message);
         return [];
       }
       pterodactylConfigs = data || [];
+      console.log("Pterodactyl configs loaded:", pterodactylConfigs);
       return pterodactylConfigs;
     }
 
@@ -149,7 +152,7 @@
       // Removed: databases, allocations, backups, startup_script, server_name_prefix fields from edit form
 
       // Scroll to form
-      document.getElementById("addPterodactylConfigForm").scrollIntoView({ behavior: 'smooth' });
+      document.getElementById("pterodactylConfigForm").scrollIntoView({ behavior: 'smooth' });
     }
 
     async function deletePterodactylConfig(id) {
@@ -294,12 +297,15 @@
     function populatePterodactylConfigDropdown() {
       const select = document.getElementById("pterodactylConfigId");
       select.innerHTML = '<option value="">Pilih Konfigurasi Pterodactyl</option>';
-      pterodactylConfigs.forEach(config => {
-        const option = document.createElement("option");
-        option.value = config.id;
-        option.textContent = config.name;
-        select.appendChild(option);
-      });
+      if (pterodactylConfigs && pterodactylConfigs.length > 0) {
+        pterodactylConfigs.forEach(config => {
+          const option = document.createElement("option");
+          option.value = config.id;
+          option.textContent = config.name;
+          select.appendChild(option);
+        });
+      }
+      console.log("Dropdown populated with Pterodactyl configs.");
     }
 
     async function addProduct(event) {
