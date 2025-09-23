@@ -7,9 +7,9 @@
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // config.js content
-    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // UPDATED SUPABASE URL
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // UPDATED SUPABASE KEY
+    // config.js content (Pastikan URL dan Key Supabase Anda sudah benar)
+    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // GANTI DENGAN URL SUPABASE ANDA
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // GANTI DENGAN ANON KEY SUPABASE ANDA
     const { createClient } = supabase;
     window.supabase = createClient(supabaseUrl, supabaseKey);
   </script>
@@ -23,6 +23,10 @@
     let currentCategory = 'panel_pterodactyl';
     let pterodactylPanelUrl = '#'; // Global variable for Pterodactyl Panel URL
 
+    /**
+     * Memeriksa status autentikasi pengguna.
+     * Jika tidak terautentikasi, redirect ke halaman login.
+     */
     async function checkUserAuth() {
       const { data: { user }, error } = await window.supabase.auth.getUser();
       if (error || !user) {
@@ -30,28 +34,33 @@
         return;
       }
 
+      // Ambil data profil pengguna dari tabel 'users' (public schema).
       const { data: userData, error: userError } = await window.supabase
-        .from("users")
+        .from("users") // Ganti 'users' jika nama tabel profil Anda berbeda.
         .select("*")
         .eq("id", user.id)
         .single();
 
       if (userError || !userData) {
-        alert("Gagal memuat profil.");
-        await window.supabase.auth.signOut();
+        alert("Gagal memuat profil pengguna. Silakan coba lagi atau hubungi admin.");
+        console.error("Error fetching user profile:", userError);
+        await window.supabase.auth.signOut(); // Logout jika profil tidak dapat dimuat.
         window.location.href = "signin.html";
         return;
       }
 
       currentUser = userData;
-      await loadGlobalSettings(); // Load global settings including Pterodactyl Panel URL
-      showSection("products");
-      loadAnnouncement();
+      await loadGlobalSettings(); // Muat pengaturan global termasuk URL Pterodactyl Panel.
+      showSection("products"); // Tampilkan bagian produk secara default.
+      loadAnnouncement(); // Muat pengumuman.
     }
 
+    /**
+     * Memuat pengaturan global dari database.
+     */
     async function loadGlobalSettings() {
       const { data, error } = await window.supabase.from("settings").select("pterodactyl_panel_url").single();
-      if (error && error.code !== 'PGRST116') {
+      if (error && error.code !== 'PGRST116') { // PGRST116 berarti tidak ada baris ditemukan.
         console.error("Error loading global settings:", error);
       }
       if (data && data.pterodactyl_panel_url) {
@@ -59,17 +68,27 @@
       }
     }
 
+    /**
+     * Memuat daftar produk aktif dari database.
+     */
     async function loadProducts() {
       const { data, error } = await window.supabase.from("products").select("*").eq("active", true);
-      if (error) return console.error(error);
+      if (error) {
+        console.error("Error loading products:", error);
+        return;
+      }
 
       allProducts = data || [];
-      filterProductsByCategory(currentCategory);
+      filterProductsByCategory(currentCategory); // Filter produk berdasarkan kategori saat ini.
     }
 
+    /**
+     * Menampilkan produk ke dalam container HTML.
+     * @param {Array} productsToDisplay - Array produk yang akan ditampilkan.
+     */
     function displayProducts(productsToDisplay) {
       const container = document.getElementById("productsContainer");
-      container.innerHTML = "";
+      container.innerHTML = ""; // Bersihkan konten sebelumnya.
       if (productsToDisplay && productsToDisplay.length > 0) {
         productsToDisplay.forEach((p) => {
           const safeName = p.name.replace(/'/g, "\\'");
@@ -89,7 +108,6 @@
             stockInfo = `<p>Status: <strong>Tersedia</strong></p>`;
           }
 
-
           div.innerHTML = `
             <h3>${p.name}</h3>
             <p>Rp ${p.price.toLocaleString()}</p>
@@ -105,6 +123,9 @@
       }
     }
 
+    /**
+     * Memfilter produk berdasarkan istilah pencarian dan kategori saat ini.
+     */
     function filterProducts() {
       const searchTerm = document.getElementById("productSearch").value.toLowerCase();
       const filtered = allProducts.filter(product =>
@@ -114,6 +135,10 @@
       displayProducts(filtered);
     }
 
+    /**
+     * Memfilter produk berdasarkan kategori yang dipilih.
+     * @param {string} category - Kategori produk yang akan ditampilkan.
+     */
     function filterProductsByCategory(category) {
       currentCategory = category;
       const buttons = document.querySelectorAll('.category-button');
@@ -124,9 +149,15 @@
           button.classList.remove('active');
         }
       });
-      filterProducts();
+      filterProducts(); // Panggil filterProducts untuk menerapkan filter kategori dan pencarian.
     }
 
+    /**
+     * Menambahkan produk ke keranjang belanja.
+     * @param {string} id - ID produk.
+     * @param {string} name - Nama produk.
+     * @param {number} price - Harga produk.
+     */
     async function addToCart(id, name, price) {
       const product = allProducts.find(p => p.id === id);
       if (product.category === 'game_account' && product.stock <= 0) {
@@ -144,6 +175,9 @@
       alert("Ditambahkan ke Keranjang By Bangskull!");
     }
 
+    /**
+     * Memperbarui tampilan keranjang belanja.
+     */
     function updateCartDisplay() {
       const total = cart.reduce((sum, p) => sum + p.price, 0);
       const cartDiv = document.getElementById("cartItems");
@@ -161,12 +195,22 @@
       }
     }
 
+    /**
+     * Menghapus produk dari keranjang belanja.
+     * @param {number} index - Indeks produk di array keranjang.
+     */
     function removeFromCart(index) {
       cart.splice(index, 1);
       updateCartDisplay();
       alert("Produk dihapus dari keranjang.");
     }
 
+    /**
+     * Memulai proses pembelian langsung untuk satu produk.
+     * @param {string} pid - ID produk.
+     * @param {string} name - Nama produk.
+     * @param {number} price - Harga produk.
+     */
     async function buyNow(pid, name, price) {
       if (!currentUser) return alert("Silakan login.");
 
@@ -180,10 +224,14 @@
       await openQris();
     }
 
+    /**
+     * Memulai proses checkout untuk semua produk di keranjang.
+     */
     async function checkout() {
       if (cart.length === 0) return alert("Keranjang kosong!");
       if (!currentUser) return alert("Silakan login.");
 
+      // Periksa stok untuk semua item di keranjang sebelum checkout.
       for (const item of cart) {
         const product = allProducts.find(p => p.id === item.id);
         if (product.category === 'game_account' && product.stock <= 0) {
@@ -196,6 +244,9 @@
       await openQris();
     }
 
+    /**
+     * Membuka modal QRIS untuk pembayaran.
+     */
     async function openQris() {
       const { data, error } = await window.supabase.from("settings").select("qris_image_url").single();
       if (error || !data || !data.qris_image_url) {
@@ -206,11 +257,17 @@
       document.getElementById("qrisModal").style.display = "flex";
     }
 
+    /**
+     * Menutup modal QRIS.
+     */
     function closeQris() {
       document.getElementById("qrisModal").style.display = "none";
-      document.getElementById("proofFile").value = "";
+      document.getElementById("proofFile").value = ""; // Bersihkan input file.
     }
 
+    /**
+     * Mengkonfirmasi pembayaran dengan mengupload bukti transfer.
+     */
     async function confirmPayment() {
       const file = document.getElementById("proofFile").files[0];
       if (!file) return alert("Upload bukti transfer dulu.");
@@ -220,6 +277,7 @@
         return;
       }
 
+      // Upload bukti transfer ke Supabase Storage.
       const fileName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
       const path = `${currentUser.id}/${fileName}`;
       const { error: upErr } = await window.supabase.storage.from("proofs").upload(path, file);
@@ -231,14 +289,20 @@
       uploadedProofUrl = urlData.publicUrl;
 
       closeQris();
-      document.getElementById("emailModal").style.display = "flex";
+      document.getElementById("emailModal").style.display = "flex"; // Buka modal email.
     }
 
+    /**
+     * Menutup modal email.
+     */
     function closeEmail() {
       document.getElementById("emailModal").style.display = "none";
       uploadedProofUrl = null;
     }
 
+    /**
+     * Mengirim email kontak dan memproses pesanan.
+     */
     async function submitEmail() {
       if (!pendingCheckout) {
         alert("Transaksi tidak ditemukan. Silakan ulangi proses checkout.");
@@ -252,6 +316,7 @@
       let productsToUpdateStock = [];
       let ordersToProvision = [];
 
+      // Proses pesanan tunggal atau dari keranjang.
       if (pendingCheckout.mode === "single") {
         const product = allProducts.find(p => p.id === pendingCheckout.item.id);
         if (product.category === 'game_account' && product.stock <= 0) {
@@ -286,14 +351,16 @@
             }
           }
         }
-        cart = [];
+        cart = []; // Kosongkan keranjang setelah checkout.
         updateCartDisplay();
       }
 
+      // Perbarui stok produk di database.
       for (const item of productsToUpdateStock) {
         await window.supabase.from("products").update({ stock: item.newStock }).eq("id", item.id);
       }
 
+      // Otomatis provision server Pterodactyl jika ada.
       for (const orderId of ordersToProvision) {
         try {
           const response = await fetch("/api/provision-pterodactyl", {
@@ -308,7 +375,7 @@
           } else {
             console.log(`Successfully auto-provisioned server for order ${orderId}`);
             const notifiedOrder = ordersToNotify.find(o => o.id === orderId);
-            if (notifiedOrder) notifiedOrder.status = 'done';
+            if (notifiedOrder) notifiedOrder.status = 'done'; // Perbarui status untuk notifikasi.
           }
         } catch (error) {
           console.error(`Error calling provisioning API for order ${orderId}:`, error);
@@ -316,6 +383,7 @@
         }
       }
 
+      // Kirim notifikasi ke Telegram admin.
       if (ordersToNotify.length > 0) {
         await fetch("/api/notify", {
           method: "POST",
@@ -326,13 +394,20 @@
 
       document.getElementById("emailModal").style.display = "none";
       alert("✅ Pesanan dibuat! Admin akan konfirmasi.\n\n📧 Produk akan dikirim ke email yang Anda masukkan.");
-      loadHistory();
-      loadProducts();
+      loadHistory(); // Muat ulang riwayat pesanan.
+      loadProducts(); // Muat ulang produk untuk memperbarui stok.
 
       pendingCheckout = null;
       uploadedProofUrl = null;
     }
 
+    /**
+     * Membuat entri pesanan baru di database.
+     * @param {object} p - Objek produk.
+     * @param {string} proofUrl - URL bukti transfer.
+     * @param {string} email - Email kontak pengguna.
+     * @returns {Promise<object|null>} Objek pesanan yang dibuat atau null jika gagal.
+     */
     async function createOrder(p, proofUrl, email) {
       const { data, error } = await window.supabase.from("orders").insert([{
         product_id: p.id,
@@ -346,6 +421,7 @@
 
       if (error) {
         alert("Gagal membuat order untuk " + p.name + ": " + error.message);
+        console.error("Error creating order:", error);
         return null;
       }
 
@@ -359,13 +435,18 @@
         status: "waiting_confirmation",
         product_category: p.category,
         pterodactyl_server_id: data.pterodactyl_server_id,
-        pterodactyl_panel_url: pterodactylPanelUrl, // Pass global panel URL
+        pterodactyl_panel_url: pterodactylPanelUrl, // Kirim URL panel global
       };
     }
 
     let currentOrderIdForRating = null;
     let currentProductIdForRating = null;
 
+    /**
+     * Membuka modal rating untuk pesanan tertentu.
+     * @param {string} orderId - ID pesanan.
+     * @param {string} productId - ID produk.
+     */
     async function openRatingModal(orderId, productId) {
       currentOrderIdForRating = orderId;
       currentProductIdForRating = productId;
@@ -384,6 +465,7 @@
 
       document.getElementById("ratingProductName").textContent = productData.name;
 
+      // Reset bintang dan komentar di modal.
       const stars = document.querySelectorAll(".rating-stars .star");
       stars.forEach(star => {
         star.classList.remove("selected");
@@ -391,6 +473,7 @@
       document.getElementById("selectedRating").value = "0";
       document.getElementById("ratingComment").value = "";
 
+      // Muat rating yang sudah ada jika ada.
       const { data: existingRating, error: ratingError } = await window.supabase
         .from("ratings")
         .select("*")
@@ -410,12 +493,16 @@
       document.getElementById("ratingModal").style.display = "flex";
     }
 
+    /**
+     * Menutup modal rating.
+     */
     function closeRatingModal() {
       document.getElementById("ratingModal").style.display = "none";
       currentOrderIdForRating = null;
       currentProductIdForRating = null;
     }
 
+    // Event listener untuk bintang rating.
     document.addEventListener("DOMContentLoaded", () => {
       if (!document.body.dataset.ratingListenerAdded) {
         const stars = document.querySelectorAll(".rating-stars .star");
@@ -436,6 +523,9 @@
       }
     });
 
+    /**
+     * Mengirim rating dan komentar ke database.
+     */
     async function submitRating() {
       const rating = parseInt(document.getElementById("selectedRating").value);
       const comment = document.getElementById("ratingComment").value.trim();
@@ -450,6 +540,7 @@
         return;
       }
 
+      // Cek apakah sudah ada rating untuk pesanan ini.
       const { data: existingRating, error: checkError } = await window.supabase
         .from("ratings")
         .select("id")
@@ -458,11 +549,13 @@
 
       let error;
       if (existingRating) {
+        // Update rating yang sudah ada.
         ({ error } = await window.supabase
           .from("ratings")
           .update({ rating: rating, comment: comment, created_at: new Date() })
           .eq("id", existingRating.id));
       } else {
+        // Insert rating baru.
         ({ error } = await window.supabase.from("ratings").insert([{
           order_id: currentOrderIdForRating,
           user_id: currentUser.id,
@@ -480,13 +573,16 @@
 
       alert("Terima kasih atas rating Anda!");
       closeRatingModal();
-      loadHistory();
-      loadAllRatings();
+      loadHistory(); // Muat ulang riwayat pesanan untuk memperbarui tombol rating.
+      loadAllRatings(); // Muat ulang semua rating.
     }
 
+    /**
+     * Memuat riwayat pesanan pengguna.
+     */
     async function loadHistory() {
       const { data, error } = await window.supabase
-        .from("orders_view")
+        .from("orders_view") // Menggunakan view untuk mendapatkan detail produk dan user.
         .select("*")
         .eq("user_id", currentUser.id)
         .order("created_at", { ascending: false });
@@ -505,6 +601,7 @@
 
           let ratingButton = '';
           if (o.status === 'done') {
+            // Cek apakah pengguna sudah memberikan rating untuk pesanan ini.
             const { data: existingRating, error: ratingCheckError } = await window.supabase
               .from("ratings")
               .select("id")
@@ -526,7 +623,6 @@
           } else if (o.product_category === 'panel_pterodactyl' && o.status !== 'done') {
             pterodactylInfo = `<p><i>Server Pterodactyl akan diprovision setelah pesanan selesai.</i></p>`;
           }
-
 
           div.innerHTML = `
             <p><strong>Order ID:</strong> ${o.id}</p>
@@ -550,6 +646,9 @@
       }
     }
 
+    /**
+     * Memuat semua rating produk dari database untuk ditampilkan secara global.
+     */
     async function loadAllRatings() {
       const { data: ratings, error } = await window.supabase
         .from("ratings")
@@ -572,7 +671,7 @@
       container.innerHTML = "";
 
       if (ratings && ratings.length > 0) {
-        displayGlobalRatingStatistics(ratings);
+        displayGlobalRatingStatistics(ratings); // Tampilkan statistik rating global.
 
         const table = document.createElement("table");
         table.className = "ratings-table";
@@ -604,6 +703,7 @@
         });
         container.appendChild(table);
       } else {
+        // Reset statistik jika tidak ada rating.
         document.getElementById("globalTotalRatingsCount").textContent = "0";
         document.getElementById("globalAverageRating").textContent = "0.0";
         for (let i = 1; i <= 5; i++) {
@@ -615,6 +715,10 @@
       }
     }
 
+    /**
+     * Menampilkan statistik rating global.
+     * @param {Array} ratings - Array objek rating.
+     */
     function displayGlobalRatingStatistics(ratings) {
       const totalRatings = ratings.length;
       let sumRatings = 0;
@@ -639,7 +743,9 @@
       }
     }
 
-
+    /**
+     * Memuat dan menampilkan pengumuman dari pengaturan.
+     */
     async function loadAnnouncement() {
       const { data, error } = await window.supabase.from("settings").select("announcement").single();
       const announcementContainer = document.getElementById("announcementContainer");
@@ -659,6 +765,10 @@
       }
     }
 
+    /**
+     * Menampilkan bagian dashboard yang dipilih.
+     * @param {string} section - ID dari bagian yang akan ditampilkan.
+     */
     function showSection(section) {
       document.getElementById("products").style.display = "none";
       document.getElementById("cart").style.display = "none";
@@ -669,17 +779,21 @@
       if (section === "products") {
         loadProducts();
         document.getElementById("productSearch").value = "";
-        filterProductsByCategory('panel_pterodactyl');
+        filterProductsByCategory('panel_pterodactyl'); // Default kategori saat masuk ke produk.
       }
       if (section === "cart") updateCartDisplay();
       if (section === "history") loadHistory();
       if (section === "all-ratings") loadAllRatings();
     }
 
+    // Panggil fungsi checkUserAuth saat halaman dimuat.
     window.onload = () => {
       checkUserAuth();
     };
 
+    /**
+     * Melakukan logout pengguna.
+     */
     async function logout() {
       await window.supabase.auth.signOut();
       window.location.href = "signin.html";
