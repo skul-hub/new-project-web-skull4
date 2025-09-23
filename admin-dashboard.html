@@ -24,13 +24,19 @@
      */
     async function checkAdminAuth() {
       const { data: { user }, error } = await window.supabase.auth.getUser();
+      console.log("Supabase user:", user); // Debugging: Cek apakah user ada setelah login
       if (error || !user) {
+        console.error("User not authenticated or error:", error);
         window.location.href = "signin.html";
         return;
       }
 
-      const { data: userData } = await window.supabase.from("users").select("*").eq("id", user.id).single();
-      if (!userData || userData.role !== "admin") {
+      const { data: userData, error: userError } = await window.supabase.from("users").select("*").eq("id", user.id).single();
+      console.log("User data from public.users:", userData); // Debugging: Cek data profil user
+      console.log("User role:", userData?.role); // Debugging: Cek role user
+
+      if (userError || !userData || userData.role !== "admin") {
+        console.error("Access denied. User data error or not admin:", userError || "Not admin role");
         alert("Akses ditolak. Anda bukan admin.");
         window.location.href = "signin.html";
         return;
@@ -935,26 +941,34 @@
      * berdasarkan kategori produk yang dipilih.
      */
     function togglePterodactylFields() {
+      console.log("togglePterodactylFields triggered."); // Debugging log
       const category = document.getElementById("productCategory").value;
       const pterodactylConfigDropdown = document.getElementById("pterodactylConfigDropdown");
       const productStockInput = document.getElementById("productStock"); // Mengganti nama variabel agar lebih jelas
+      const pterodactylConfigSelect = document.getElementById("pterodactylConfigId");
 
       if (category === "panel_pterodactyl") {
         pterodactylConfigDropdown.style.display = "block"; // Tampilkan dropdown Pterodactyl
+        pterodactylConfigSelect.setAttribute("required", "required"); // Jadikan dropdown Pterodactyl wajib diisi
+
         productStockInput.style.display = "none"; // Sembunyikan input stok
         productStockInput.value = "0"; // Set nilai stok ke 0 (atau kosongkan)
         productStockInput.removeAttribute("required"); // Hapus atribut required
       } else if (category === "game_account") {
         pterodactylConfigDropdown.style.display = "none"; // Sembunyikan dropdown Pterodactyl
+        pterodactylConfigSelect.removeAttribute("required"); // Hapus atribut required dari dropdown Pterodactyl
+
         productStockInput.style.display = "block"; // Tampilkan input stok
         productStockInput.setAttribute("required", "required"); // Tambahkan atribut required
       } else {
         // Untuk kategori lain atau jika belum memilih
         pterodactylConfigDropdown.style.display = "none";
+        pterodactylConfigSelect.removeAttribute("required");
+
         productStockInput.style.display = "block";
         productStockInput.setAttribute("required", "required");
       }
-      console.log("togglePterodactylFields triggered. Category:", category); // Debugging log
+      console.log("togglePterodactylFields. Current Category:", category); // Debugging log
     }
 
     // PENTING: Panggil togglePterodactylFields saat DOM selesai dimuat
