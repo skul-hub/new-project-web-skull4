@@ -7,20 +7,26 @@
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // config.js content
-    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // UPDATED SUPABASE URL
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // UPDATED SUPABASE KEY
+    // config.js content (Pastikan URL dan Key Supabase Anda sudah benar)
+    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // GANTI DENGAN URL SUPABASE ANDA
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // GANTI DENGAN ANON KEY SUPABASE ANDA
     const { createClient } = supabase;
     window.supabase = createClient(supabaseUrl, supabaseKey);
   </script>
   <script>
     // signup.js content
+    /**
+     * Fungsi untuk menangani proses registrasi pengguna baru.
+     * @param {Event} event - Objek event dari form submit.
+     */
     async function signup(event) {
-      event.preventDefault();
+      event.preventDefault(); // Mencegah refresh halaman.
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
       const username = document.getElementById("username").value; // Ambil username dari input
 
+      // Melakukan sign-up dengan email dan password menggunakan Supabase Auth.
+      // Mengirim username sebagai bagian dari data pengguna tambahan.
       const { data, error } = await window.supabase.auth.signUp({
         email,
         password,
@@ -31,16 +37,33 @@
 
       if (error) {
         alert("Registrasi gagal: " + error.message);
+        console.error("Signup error:", error);
         return;
       }
 
+      // Periksa apakah data pengguna berhasil dibuat.
       if (!data || !data.user || !data.user.id) {
         alert("Registrasi berhasil, tetapi data pengguna tidak lengkap. Silakan coba login.");
         window.location.href = "signin.html";
         return;
       }
 
-      alert("Registrasi berhasil, silakan login!");
+      // Setelah sign-up berhasil, Anda mungkin ingin menambahkan entri ke tabel 'public.users'
+      // dengan role default (misalnya 'user').
+      const { error: insertError } = await window.supabase
+        .from('users') // Ganti 'users' jika nama tabel profil Anda berbeda.
+        .insert([
+          { id: data.user.id, username: username, email: email, role: 'user' } // Set role default ke 'user'
+        ]);
+
+      if (insertError) {
+        console.error("Error inserting user profile:", insertError);
+        alert("Registrasi berhasil, tetapi gagal menyimpan profil pengguna. Silakan coba login.");
+        window.location.href = "signin.html";
+        return;
+      }
+
+      alert("Registrasi berhasil! Silakan login.");
       window.location.href = "signin.html";
     }
   </script>
