@@ -7,19 +7,24 @@
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // config.js content
-    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // UPDATED SUPABASE URL
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // UPDATED SUPABASE KEY
+    // config.js content (Pastikan URL dan Key Supabase Anda sudah benar)
+    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // GANTI DENGAN URL SUPABASE ANDA
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdFmoyOqLAEYCOP1TIhKmroA'; // GANTI DENGAN ANON KEY SUPABASE ANDA
     const { createClient } = supabase;
     window.supabase = createClient(supabaseUrl, supabaseKey);
   </script>
   <script>
     // signin.js content
+    /**
+     * Fungsi untuk menangani proses login pengguna.
+     * @param {Event} event - Objek event dari form submit.
+     */
     async function signin(event) {
-      event.preventDefault();
+      event.preventDefault(); // Mencegah refresh halaman.
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
 
+      // Melakukan sign-in dengan email dan password menggunakan Supabase Auth.
       const { data, error } = await window.supabase.auth.signInWithPassword({
         email,
         password,
@@ -27,20 +32,26 @@
 
       if (error) {
         alert("Login gagal: " + error.message);
+        console.error("Login error:", error);
         return;
       }
 
+      // Setelah login berhasil, ambil data profil pengguna dari tabel 'users' (public schema).
       const { data: userData, error: userError } = await window.supabase
-        .from("users")
-        .select("role")
-        .eq("id", data.user.id)
-        .single();
+        .from("users") // Ganti 'users' jika nama tabel profil Anda berbeda.
+        .select("role") // Hanya ambil kolom 'role'.
+        .eq("id", data.user.id) // Cari berdasarkan ID pengguna yang baru login.
+        .single(); // Harapkan hanya satu hasil.
 
       if (userError || !userData) {
-        alert("Gagal memuat data user.");
+        alert("Gagal memuat data user. Silakan coba lagi atau hubungi admin.");
+        console.error("Error fetching user role:", userError);
+        // Opsional: Logout pengguna jika data role tidak dapat dimuat.
+        await window.supabase.auth.signOut();
         return;
       }
 
+      // Redirect berdasarkan role pengguna.
       if (userData.role === "admin") {
         window.location.href = "admin-dashboard.html";
       } else {
