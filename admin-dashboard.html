@@ -7,17 +7,21 @@
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    // config.js content
-    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // UPDATED SUPABASE URL
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdHvdFmoyOqLAEYCOP1TIhKmroA'; // UPDATED SUPABASE KEY
+    // config.js content (Pastikan URL dan Key Supabase Anda sudah benar)
+    const supabaseUrl = 'https://ivxlvkdvhroxkwbwnxda.supabase.co'; // GANTI DENGAN URL SUPABASE ANDA
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml2eGx2a2R2aHJveGt3YndueGRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyMDk2ODcsImV4cCI6MjA3Mzc4NTY4N30.owC5v3mU2NNAKxksaeHvdHvdFmoyOqLAEYCOP1TIhKmroA'; // GANTI DENGAN ANON KEY SUPABASE ANDA
     const { createClient } = supabase;
     window.supabase = createClient(supabaseUrl, supabaseKey);
   </script>
   <script>
     // admin-dashboard.js content
     let currentAdmin = null;
-    let pterodactylConfigs = []; // To store available Pterodactyl configurations
+    let pterodactylConfigs = []; // Untuk menyimpan konfigurasi Pterodactyl yang tersedia
 
+    /**
+     * Memeriksa status autentikasi admin.
+     * Jika tidak terautentikasi atau bukan admin, redirect ke halaman login.
+     */
     async function checkAdminAuth() {
       const { data: { user }, error } = await window.supabase.auth.getUser();
       if (error || !user) {
@@ -27,31 +31,46 @@
 
       const { data: userData } = await window.supabase.from("users").select("*").eq("id", user.id).single();
       if (!userData || userData.role !== "admin") {
-        alert("Akses ditolak.");
+        alert("Akses ditolak. Anda bukan admin.");
         window.location.href = "signin.html";
         return;
       }
 
       currentAdmin = userData;
+      // Setelah autentikasi berhasil, tampilkan bagian produk secara default.
       showSection("products");
     }
 
+    /**
+     * Menampilkan bagian dashboard yang dipilih dan memuat data yang relevan.
+     * @param {string} section - ID dari bagian yang akan ditampilkan (e.g., "products", "orders").
+     */
     function showSection(section) {
+      // Sembunyikan semua bagian terlebih dahulu.
       document.getElementById("products").style.display = "none";
       document.getElementById("orders").style.display = "none";
       document.getElementById("settings").style.display = "none";
       document.getElementById("ratings").style.display = "none";
-      document.getElementById("pterodactyl-settings").style.display = "none"; // NEW SECTION
+      document.getElementById("pterodactyl-settings").style.display = "none"; // Bagian baru Pterodactyl
+      
+      // Tampilkan bagian yang dipilih.
       document.getElementById(section).style.display = "block";
 
+      // Muat data spesifik untuk setiap bagian.
       if (section === "products") loadProducts();
       if (section === "orders") loadOrders();
       if (section === "settings") loadQrisSettings();
       if (section === "ratings") loadRatings();
-      if (section === "pterodactyl-settings") loadPterodactylSettings(); // NEW
+      if (section === "pterodactyl-settings") loadPterodactylSettings();
     }
 
-    // NEW: Pterodactyl Config Management
+    // --- Pterodactyl Config Management ---
+
+    /**
+     * Memuat semua konfigurasi Pterodactyl dari database.
+     * Data akan disimpan di variabel global `pterodactylConfigs`.
+     * @returns {Promise<Array>} Array berisi konfigurasi Pterodactyl.
+     */
     async function loadPterodactylConfigs() {
       console.log("Attempting to load Pterodactyl configs...");
       const { data, error } = await window.supabase.from("pterodactyl_configs").select("*").order("name", { ascending: true });
@@ -65,15 +84,19 @@
       return pterodactylConfigs;
     }
 
+    /**
+     * Merender daftar konfigurasi Pterodactyl ke dalam elemen HTML.
+     */
     async function renderPterodactylConfigs() {
       const container = document.getElementById("pterodactylConfigsList");
-      container.innerHTML = "";
+      container.innerHTML = ""; // Bersihkan konten sebelumnya.
 
       if (pterodactylConfigs.length === 0) {
         container.innerHTML = "<p>Belum ada konfigurasi Pterodactyl yang ditambahkan.</p>";
         return;
       }
 
+      // Buat elemen untuk setiap konfigurasi.
       pterodactylConfigs.forEach(config => {
         const div = document.createElement("div");
         div.className = "pterodactyl-config-item";
@@ -90,8 +113,13 @@
       });
     }
 
+    /**
+     * Menambahkan atau memperbarui konfigurasi Pterodactyl.
+     * @param {Event} event - Objek event dari form submit.
+     */
     async function addOrUpdatePterodactylConfig(event) {
-      event.preventDefault();
+      event.preventDefault(); // Mencegah refresh halaman.
+
       const configId = document.getElementById("configId").value;
       const name = document.getElementById("configName").value;
       const egg_id = parseInt(document.getElementById("configEggId").value, 10);
@@ -102,8 +130,8 @@
       const disk = parseInt(document.getElementById("configDisk").value, 10);
       const swap = parseInt(document.getElementById("configSwap").value, 10);
       const io = parseInt(document.getElementById("configIo").value, 10);
-      // Removed: databases, allocations, backups, startup_script, server_name_prefix
 
+      // Validasi input.
       if (!name || isNaN(egg_id) || isNaN(nest_id) || isNaN(location_id) || isNaN(memory) || isNaN(cpu) || isNaN(disk)) {
         alert("Lengkapi semua field konfigurasi Pterodactyl yang wajib (Nama, Egg ID, Nest ID, Location ID, Memory, CPU, Disk)!");
         return;
@@ -115,10 +143,10 @@
 
       let error;
       if (configId) {
-        // Update existing config
+        // Update konfigurasi yang sudah ada.
         ({ error } = await window.supabase.from("pterodactyl_configs").update(configData).eq("id", configId));
       } else {
-        // Add new config
+        // Tambahkan konfigurasi baru.
         ({ error } = await window.supabase.from("pterodactyl_configs").insert([configData]));
       }
 
@@ -129,16 +157,22 @@
       }
 
       alert("Konfigurasi Pterodactyl berhasil disimpan!");
-      document.getElementById("pterodactylConfigForm").reset();
-      document.getElementById("configId").value = ""; // Clear hidden ID
-      await loadPterodactylConfigs();
-      renderPterodactylConfigs();
+      document.getElementById("pterodactylConfigForm").reset(); // Reset form.
+      document.getElementById("configId").value = ""; // Bersihkan hidden ID.
+      await loadPterodactylConfigs(); // Muat ulang konfigurasi.
+      renderPterodactylConfigs(); // Render ulang daftar.
+      populatePterodactylConfigDropdown(); // Perbarui dropdown produk.
     }
 
+    /**
+     * Mengisi form edit dengan data konfigurasi Pterodactyl yang dipilih.
+     * @param {string} id - ID konfigurasi yang akan diedit.
+     */
     async function editPterodactylConfig(id) {
       const config = pterodactylConfigs.find(c => c.id === id);
       if (!config) return alert("Konfigurasi tidak ditemukan.");
 
+      // Isi form dengan data konfigurasi.
       document.getElementById("configId").value = config.id;
       document.getElementById("configName").value = config.name;
       document.getElementById("configEggId").value = config.egg_id;
@@ -149,12 +183,15 @@
       document.getElementById("configDisk").value = config.disk;
       document.getElementById("configSwap").value = config.swap;
       document.getElementById("configIo").value = config.io;
-      // Removed: databases, allocations, backups, startup_script, server_name_prefix fields from edit form
 
-      // Scroll to form
+      // Scroll ke form agar terlihat.
       document.getElementById("pterodactylConfigForm").scrollIntoView({ behavior: 'smooth' });
     }
 
+    /**
+     * Menghapus konfigurasi Pterodactyl dari database.
+     * @param {string} id - ID konfigurasi yang akan dihapus.
+     */
     async function deletePterodactylConfig(id) {
       if (!confirm("Yakin ingin menghapus konfigurasi ini? Produk yang menggunakan konfigurasi ini mungkin akan terpengaruh.")) return;
 
@@ -165,23 +202,27 @@
         return;
       }
       alert("Konfigurasi berhasil dihapus.");
-      await loadPterodactylConfigs();
-      renderPterodactylConfigs();
-      loadProducts(); // Refresh products list in case any product used this config
+      await loadPterodactylConfigs(); // Muat ulang konfigurasi.
+      renderPterodactylConfigs(); // Render ulang daftar.
+      loadProducts(); // Muat ulang produk untuk merefleksikan perubahan.
     }
 
+    /**
+     * Memuat pengaturan global Pterodactyl (URL panel dan API key) dan daftar konfigurasi.
+     */
     async function loadPterodactylSettings() {
-      await loadPterodactylConfigs(); // Load configs for product dropdown
-      renderPterodactylConfigs(); // Render configs list
+      await loadPterodactylConfigs(); // Muat konfigurasi untuk dropdown produk dan daftar.
+      renderPterodactylConfigs(); // Render daftar konfigurasi.
 
       const { data, error } = await window.supabase.from("settings").select("pterodactyl_panel_url, pterodactyl_api_key").single();
-      if (error && error.code !== 'PGRST116') {
+      if (error && error.code !== 'PGRST116') { // PGRST116 berarti tidak ada baris ditemukan.
         console.error("Error loading Pterodactyl global settings:", error);
         document.getElementById("pterodactylPanelUrl").value = "";
         document.getElementById("pterodactylApiKey").value = "";
         return;
       }
 
+      // Isi form pengaturan global.
       if (data) {
         document.getElementById("pterodactylPanelUrl").value = data.pterodactyl_panel_url || "";
         document.getElementById("pterodactylApiKey").value = data.pterodactyl_api_key || "";
@@ -191,6 +232,10 @@
       }
     }
 
+    /**
+     * Menyimpan pengaturan global Pterodactyl ke database.
+     * @param {Event} event - Objek event dari form submit.
+     */
     async function savePterodactylGlobalSettings(event) {
       event.preventDefault();
       const panelUrl = document.getElementById("pterodactylPanelUrl").value;
@@ -201,6 +246,7 @@
         return;
       }
 
+      // Cek apakah sudah ada pengaturan global.
       const { data: existingSettings, error: fetchError } = await window.supabase
         .from("settings")
         .select("id")
@@ -209,11 +255,13 @@
 
       let error;
       if (existingSettings) {
+        // Update pengaturan yang sudah ada.
         ({ error } = await window.supabase
           .from("settings")
           .update({ pterodactyl_panel_url: panelUrl, pterodactyl_api_key: apiKey, updated_at: new Date() })
           .eq("id", existingSettings.id));
       } else {
+        // Insert pengaturan baru.
         ({ error } = await window.supabase
           .from("settings")
           .insert([{ pterodactyl_panel_url: panelUrl, pterodactyl_api_key: apiKey }]));
@@ -226,13 +274,17 @@
       }
 
       alert("Pengaturan Pterodactyl berhasil disimpan!");
-      loadPterodactylSettings();
+      loadPterodactylSettings(); // Muat ulang pengaturan.
     }
 
-    // END NEW: Pterodactyl Config Management
+    // --- END Pterodactyl Config Management ---
 
+    /**
+     * Memuat daftar produk dari database.
+     */
     async function loadProducts() {
-      await loadPterodactylConfigs(); // Load configs before products
+      await loadPterodactylConfigs(); // PENTING: Pastikan konfigurasi dimuat sebelum produk.
+      populatePterodactylConfigDropdown(); // PENTING: Isi dropdown setelah konfigurasi dimuat.
 
       const { data, error } = await window.supabase
         .from("products")
@@ -249,7 +301,10 @@
           )
         `)
         .order("name", { ascending: true });
-      if (error) return console.error(error);
+      if (error) {
+        console.error("Error loading products:", error);
+        return;
+      }
 
       const container = document.getElementById("productsList");
       container.innerHTML = "";
@@ -268,6 +323,7 @@
               <button onclick="updateProductStock('${p.id}', ${p.stock + 1})" class="admin-button">+</button>
             `;
           } else if (p.category === 'panel_pterodactyl' && p.pterodactyl_configs) {
+            // Tampilkan detail konfigurasi Pterodactyl jika ada.
             pterodactylConfigInfo = `
               <br>Paket: <strong>${p.pterodactyl_configs.config_name || 'N/A'}</strong>
               <br>Egg ID: ${p.pterodactyl_configs.egg_id || '-'}, Nest ID: ${p.pterodactyl_configs.nest_id || '-'}, Location ID: ${p.pterodactyl_configs.location_id || '-'}
@@ -291,12 +347,14 @@
       } else {
         container.innerHTML = "<p>Tidak ada produk.</p>";
       }
-      populatePterodactylConfigDropdown(); // Populate dropdown after loading configs
     }
 
+    /**
+     * Mengisi dropdown pilihan konfigurasi Pterodactyl di form tambah produk.
+     */
     function populatePterodactylConfigDropdown() {
       const select = document.getElementById("pterodactylConfigId");
-      select.innerHTML = '<option value="">Pilih Konfigurasi Pterodactyl</option>';
+      select.innerHTML = '<option value="">Pilih Konfigurasi Pterodactyl</option>'; // Opsi default.
       if (pterodactylConfigs && pterodactylConfigs.length > 0) {
         pterodactylConfigs.forEach(config => {
           const option = document.createElement("option");
@@ -308,17 +366,21 @@
       console.log("Dropdown populated with Pterodactyl configs.");
     }
 
+    /**
+     * Menambahkan produk baru ke database.
+     * @param {Event} event - Objek event dari form submit.
+     */
     async function addProduct(event) {
       event.preventDefault();
       const name = document.getElementById("productName").value;
       const price = parseInt(document.getElementById("productPrice").value, 10);
       const category = document.getElementById("productCategory").value;
       const stock = parseInt(document.getElementById("productStock").value, 10);
-      const pterodactylConfigId = document.getElementById("pterodactylConfigId").value; // NEW
+      const pterodactylConfigId = document.getElementById("pterodactylConfigId").value;
       const file = document.getElementById("productImage").files[0];
 
       if (!name || !price || !category || !file) {
-        alert("Lengkapi semua field!");
+        alert("Lengkapi semua field yang wajib diisi!");
         return;
       }
 
@@ -327,7 +389,7 @@
         return;
       }
 
-      if (category === 'panel_pterodactyl' && !pterodactylConfigId) { // NEW VALIDATION
+      if (category === 'panel_pterodactyl' && !pterodactylConfigId) {
         alert("Pilih konfigurasi Pterodactyl untuk produk panel!");
         return;
       }
@@ -337,10 +399,11 @@
         return;
       }
 
+      // Upload gambar produk ke Supabase Storage.
       const fileName = `${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
       const { error: upErr } = await window.supabase.storage.from("product-images").upload(fileName, file);
       if (upErr) {
-        alert("Upload gagal: " + upErr.message);
+        alert("Upload gambar gagal: " + upErr.message);
         return;
       }
 
@@ -352,8 +415,8 @@
         image: urlData.publicUrl,
         active: true,
         category,
-        stock: category === 'game_account' ? stock : null,
-        pterodactyl_config_id: category === 'panel_pterodactyl' ? pterodactylConfigId : null, // NEW
+        stock: category === 'game_account' ? stock : null, // Stok hanya untuk kategori 'game_account'.
+        pterodactyl_config_id: category === 'panel_pterodactyl' ? pterodactylConfigId : null, // Konfigurasi Pterodactyl hanya untuk kategori 'panel_pterodactyl'.
       };
 
       const { error } = await window.supabase.from("products").insert([productData]);
@@ -364,11 +427,15 @@
 
       alert("Produk berhasil ditambahkan!");
       document.getElementById("addProductForm").reset();
-      document.getElementById("productImage").value = "";
-      togglePterodactylFields();
-      loadProducts();
+      document.getElementById("productImage").value = ""; // Bersihkan input file.
+      togglePterodactylFields(); // Reset tampilan field Pterodactyl/stok.
+      loadProducts(); // Muat ulang daftar produk.
     }
 
+    /**
+     * Menghapus produk dari database.
+     * @param {string} id - ID produk yang akan dihapus.
+     */
     async function deleteProduct(id) {
       if (!confirm("Yakin ingin menghapus produk ini?")) return;
       const { error } = await window.supabase.from("products").delete().eq("id", id);
@@ -380,6 +447,11 @@
       loadProducts();
     }
 
+    /**
+     * Mengubah status aktif/nonaktif produk.
+     * @param {string} id - ID produk.
+     * @param {boolean} newStatus - Status baru (true untuk aktif, false untuk nonaktif).
+     */
     async function toggleProduct(id, newStatus) {
       const { error } = await window.supabase
         .from("products")
@@ -395,6 +467,11 @@
       loadProducts();
     }
 
+    /**
+     * Memperbarui stok produk (hanya untuk kategori 'game_account').
+     * @param {string} id - ID produk.
+     * @param {number} newStock - Jumlah stok baru.
+     */
     async function updateProductStock(id, newStock) {
       if (newStock < 0) {
         alert("Stok tidak bisa kurang dari 0.");
@@ -414,14 +491,19 @@
       loadProducts();
     }
 
-
+    /**
+     * Memuat daftar pesanan dari database.
+     */
     async function loadOrders() {
       const { data, error } = await window.supabase
-        .from("orders_view")
+        .from("orders_view") // Menggunakan view untuk mendapatkan detail produk dan user.
         .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) return console.error(error);
+      if (error) {
+        console.error("Error loading orders:", error);
+        return;
+      }
 
       const container = document.getElementById("ordersList");
       container.innerHTML = "";
@@ -432,12 +514,13 @@
           div.className = "order";
 
           let provisionButton = '';
+          // Tampilkan tombol provision jika produk Pterodactyl, status 'payment_received', dan belum diprovision.
           if (o.product_category === 'panel_pterodactyl' && o.status === 'payment_received' && !o.pterodactyl_server_id) {
             provisionButton = `<button onclick="provisionPterodactylServer('${o.id}')" class="admin-button" style="background: #007bff;">Provision Server</button>`;
           } else if (o.product_category === 'panel_pterodactyl' && o.pterodactyl_server_id) {
+            // Tampilkan status jika sudah diprovision.
             provisionButton = `<span style="color: #28a745; margin-left: 10px;">Server Provisioned (ID: ${o.pterodactyl_server_id.substring(0, 8)}...)</span>`;
           }
-
 
           div.innerHTML = `
             <p>Order ID: ${o.id}</p>
@@ -467,6 +550,10 @@
       }
     }
 
+    /**
+     * Menyimpan status pesanan yang diperbarui dan mengirim notifikasi.
+     * @param {string} orderId - ID pesanan yang akan diperbarui.
+     */
     async function saveOrderStatus(orderId) {
       const newStatus = document.getElementById(`status-${orderId}`).value;
       if (!newStatus) return alert("Pilih status baru dulu.");
@@ -488,7 +575,7 @@
         .single();
 
       if (error) {
-        alert("Gagal update: " + error.message);
+        alert("Gagal update status pesanan: " + error.message);
         return;
       }
 
@@ -498,17 +585,23 @@
         .eq("id", orderData.user_id)
         .single();
 
+      // Jika pembayaran diterima untuk produk Pterodactyl dan belum diprovision, tawarkan untuk provision.
       if ((newStatus === 'payment_received' || newStatus === 'done') && orderData.products.category === 'panel_pterodactyl' && !orderData.pterodactyl_server_id) {
         const confirmProvision = confirm("Pembayaran diterima untuk produk Pterodactyl. Apakah Anda ingin langsung memprovision server?");
         if (confirmProvision) {
+          // Panggil fungsi provisionPterodactylServer.
+          // Perhatikan: `event` tidak tersedia di sini, jadi kita perlu memanggilnya tanpa `event.target`.
+          // Fungsi provisionPterodactylServer perlu diadaptasi agar bisa dipanggil tanpa event.
+          // Untuk sementara, kita bisa memanggilnya langsung dan mengelola UI secara terpisah jika diperlukan.
           await provisionPterodactylServer(orderId);
         }
       }
 
-      // Fetch Pterodactyl Panel URL for notification
+      // Ambil URL Pterodactyl Panel untuk notifikasi.
       const { data: settingsData } = await window.supabase.from("settings").select("pterodactyl_panel_url").single();
       const pterodactylPanelUrl = settingsData?.pterodactyl_panel_url || "-";
 
+      // Kirim notifikasi ke Telegram admin.
       await fetch("/api/notify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -517,29 +610,38 @@
             id: orderData.id,
             username: userData?.username || "Unknown User",
             product_name: orderData.products.name || "Unknown Product",
-            payment_method: "qris",
+            payment_method: "qris", // Asumsi metode pembayaran QRIS
             payment_proof: orderData.payment_proof,
             status: orderData.status,
             contact_email: orderData.contact_email,
             product_category: orderData.products.category,
             pterodactyl_server_id: orderData.pterodactyl_server_id,
-            pterodactyl_panel_url: pterodactylPanelUrl, // Pass to notify API
+            pterodactyl_panel_url: pterodactylPanelUrl, // Kirim ke notify API
           }],
         }),
       });
 
       alert("✅ Status pesanan berhasil diupdate.");
-      loadOrders();
+      loadOrders(); // Muat ulang daftar pesanan.
     }
 
+    /**
+     * Memprovision server Pterodactyl untuk pesanan tertentu.
+     * @param {string} orderId - ID pesanan yang akan diprovision.
+     */
     async function provisionPterodactylServer(orderId) {
       if (!confirm("Yakin ingin memprovision server Pterodactyl untuk pesanan ini? Ini akan membuat server dan mengirim detail ke pengguna.")) {
         return;
       }
 
-      const button = event.target;
-      button.disabled = true;
-      button.textContent = "Processing...";
+      // Cari tombol yang memicu aksi ini untuk menonaktifkannya sementara.
+      // Ini adalah pendekatan yang sedikit hacky karena tidak ada event.target langsung.
+      // Idealnya, tombol ini harus memiliki ID unik atau diakses melalui DOM traversal yang lebih spesifik.
+      const button = document.querySelector(`#ordersList button[onclick="provisionPterodactylServer('${orderId}')"]`);
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Processing...";
+      }
 
       try {
         const response = await fetch("/api/provision-pterodactyl", {
@@ -552,7 +654,7 @@
 
         if (result.success) {
           alert("✅ Server Pterodactyl berhasil diprovision dan detail dikirim ke pengguna!");
-          loadOrders();
+          loadOrders(); // Muat ulang pesanan untuk melihat status terbaru.
         } else {
           alert("❌ Gagal memprovision server Pterodactyl: " + (result.error || "Unknown error"));
           console.error("Provisioning error:", result);
@@ -561,12 +663,16 @@
         alert("❌ Terjadi kesalahan saat memanggil API provisioning: " + error.message);
         console.error("Fetch error:", error);
       } finally {
-        button.disabled = false;
-        button.textContent = "Provision Server";
+        if (button) {
+          button.disabled = false;
+          button.textContent = "Provision Server";
+        }
       }
     }
 
-
+    /**
+     * Memuat pengaturan QRIS dan pengumuman.
+     */
     async function loadQrisSettings() {
       const { data, error } = await window.supabase.from("settings").select("qris_image_url, announcement").single();
       const currentQrisImage = document.getElementById("currentQrisImage");
@@ -598,6 +704,10 @@
       }
     }
 
+    /**
+     * Mengupload gambar QRIS baru dan menyimpannya di pengaturan.
+     * @param {Event} event - Objek event dari form submit.
+     */
     async function uploadQrisImage(event) {
       event.preventDefault();
       const file = document.getElementById("qrisImageFile").files[0];
@@ -654,6 +764,10 @@
       loadQrisSettings();
     }
 
+    /**
+     * Menyimpan teks pengumuman ke pengaturan.
+     * @param {Event} event - Objek event dari form submit.
+     */
     async function saveAnnouncement(event) {
       event.preventDefault();
       const announcementText = document.getElementById("announcementText").value;
@@ -685,6 +799,9 @@
       loadQrisSettings();
     }
 
+    /**
+     * Memuat daftar rating dan komentar pengguna.
+     */
     async function loadRatings() {
       const { data: ratings, error } = await window.supabase
         .from("ratings")
@@ -707,7 +824,7 @@
       container.innerHTML = "";
 
       if (ratings && ratings.length > 0) {
-        displayRatingStatistics(ratings);
+        displayRatingStatistics(ratings); // Tampilkan statistik rating.
 
         const table = document.createElement("table");
         table.className = "ratings-table";
@@ -743,6 +860,7 @@
         });
         container.appendChild(table);
       } else {
+        // Reset statistik jika tidak ada rating.
         document.getElementById("totalRatingsCount").textContent = "0";
         document.getElementById("averageRating").textContent = "0.0";
         for (let i = 1; i <= 5; i++) {
@@ -754,6 +872,10 @@
       }
     }
 
+    /**
+     * Menghapus rating dari database.
+     * @param {string} ratingId - ID rating yang akan dihapus.
+     */
     async function deleteRating(ratingId) {
       if (!confirm("Yakin ingin menghapus rating ini?")) return;
 
@@ -766,9 +888,13 @@
       }
 
       alert("Rating berhasil dihapus.");
-      loadRatings();
+      loadRatings(); // Muat ulang daftar rating.
     }
 
+    /**
+     * Menampilkan statistik rating (total, rata-rata, persentase per bintang).
+     * @param {Array} ratings - Array objek rating.
+     */
     function displayRatingStatistics(ratings) {
       const totalRatings = ratings.length;
       let sumRatings = 0;
@@ -793,36 +919,51 @@
       }
     }
 
+    /**
+     * Melakukan logout pengguna admin.
+     */
     async function logout() {
       await window.supabase.auth.signOut();
       window.location.href = "signin.html";
     }
 
+    // PENTING: Panggil fungsi checkAdminAuth saat halaman dimuat.
     window.onload = checkAdminAuth;
 
-    // Function to toggle Pterodactyl config fields in Add Product form
+    /**
+     * Mengatur visibilitas field konfigurasi Pterodactyl atau stok
+     * berdasarkan kategori produk yang dipilih.
+     */
     function togglePterodactylFields() {
       const category = document.getElementById("productCategory").value;
       const pterodactylConfigDropdown = document.getElementById("pterodactylConfigDropdown");
-      const productStock = document.getElementById("productStock");
+      const productStockInput = document.getElementById("productStock"); // Mengganti nama variabel agar lebih jelas
 
       if (category === "panel_pterodactyl") {
-        pterodactylConfigDropdown.style.display = "block";
-        productStock.style.display = "none";
-        productStock.value = "0";
-        productStock.removeAttribute("required");
+        pterodactylConfigDropdown.style.display = "block"; // Tampilkan dropdown Pterodactyl
+        productStockInput.style.display = "none"; // Sembunyikan input stok
+        productStockInput.value = "0"; // Set nilai stok ke 0 (atau kosongkan)
+        productStockInput.removeAttribute("required"); // Hapus atribut required
       } else if (category === "game_account") {
-        pterodactylConfigDropdown.style.display = "none";
-        productStock.style.display = "block";
-        productStock.setAttribute("required", "required");
+        pterodactylConfigDropdown.style.display = "none"; // Sembunyikan dropdown Pterodactyl
+        productStockInput.style.display = "block"; // Tampilkan input stok
+        productStockInput.setAttribute("required", "required"); // Tambahkan atribut required
       } else {
+        // Untuk kategori lain atau jika belum memilih
         pterodactylConfigDropdown.style.display = "none";
-        productStock.style.display = "block";
-        productStock.setAttribute("required", "required");
+        productStockInput.style.display = "block";
+        productStockInput.setAttribute("required", "required");
       }
+      console.log("togglePterodactylFields triggered. Category:", category); // Debugging log
     }
 
-    document.addEventListener('DOMContentLoaded', togglePterodactylFields);
+    // PENTING: Panggil togglePterodactylFields saat DOM selesai dimuat
+    // untuk mengatur tampilan awal form tambah produk.
+    document.addEventListener('DOMContentLoaded', () => {
+      togglePterodactylFields(); // Panggil sekali saat halaman dimuat
+      // Tambahkan event listener untuk perubahan kategori produk
+      document.getElementById("productCategory").addEventListener("change", togglePterodactylFields);
+    });
   </script>
   <style>
     /* Tambahan styling agar dropdown + tombol rapi */
@@ -836,6 +977,7 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
+      flex-wrap: wrap; /* Tambahkan ini agar tombol tidak tumpang tindih di layar kecil */
     }
 
     .order-actions button {
@@ -871,7 +1013,8 @@
       color: #e6edf3;
     }
     .pterodactyl-config-fields input[type="number"],
-    .pterodactyl-config-fields input[type="text"] {
+    .pterodactyl-config-fields input[type="text"],
+    .pterodactyl-config-fields select { /* Tambahkan select di sini */
       width: calc(100% - 1rem);
       margin-bottom: 1rem;
     }
@@ -932,7 +1075,7 @@
         <div id="pterodactylConfigDropdown" class="pterodactyl-config-fields" style="display:none;">
           <h3>Pilih Paket Pterodactyl</h3>
           <label for="pterodactylConfigId">Pilih Konfigurasi:</label>
-          <select id="pterodactylConfigId" required>
+          <select id="pterodactylConfigId"> <!-- Hapus 'required' di sini, karena akan diatur oleh JS -->
             <option value="">Pilih Konfigurasi Pterodactyl</option>
             <!-- Options will be populated by JS -->
           </select>
@@ -1033,7 +1176,6 @@
         <input type="number" id="configSwap" placeholder="Contoh: 0" value="0">
         <label for="configIo">IO (Block I/O):</label>
         <input type="number" id="configIo" placeholder="Contoh: 500" value="500">
-        <!-- Removed: Databases, Allocations, Backups, Startup Script, Server Name Prefix -->
         <button type="submit" class="admin-button">Simpan Konfigurasi Paket</button>
       </form>
 
